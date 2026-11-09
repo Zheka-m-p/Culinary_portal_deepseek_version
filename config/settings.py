@@ -124,7 +124,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+# --- Статика (CSS/JS/шрифты проекта) ---
+STATIC_URL = "static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]        # откуда собирать (папка в корне проекта)
+STATIC_ROOT = BASE_DIR / "staticfiles"          # куда collectstatic соберёт для продакшена
+
+# --- Медиа (загруженные пользователями файлы: фото рецептов, аватарки) ---
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
