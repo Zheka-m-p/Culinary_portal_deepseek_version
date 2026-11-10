@@ -18,10 +18,10 @@ class RegistrationForm(UserCreationForm):
         model = User
         fields = ("username", "email", "password1", "password2")
         labels = {
-            "username": "Имя пользователя",
+            "username": "Логин",
         }
         help_texts = {
-            "username": "Буквы, цифры и @/./+/-/_. Например: chef_ivan.",
+            "username": "Только латиница, цифры и @/./+/-/_. Например: chef_ivan.",
         }
 
     def __init__(self, *args, **kwargs):
@@ -48,7 +48,7 @@ class LoginForm(AuthenticationForm):
     """Форма входа."""
 
     username = forms.CharField(
-        label="Email или имя пользователя",
+        label="Email или логин",
         widget=forms.TextInput(attrs={"autofocus": True, "autocomplete": "username"}),
     )
     password = forms.CharField(
@@ -64,44 +64,38 @@ class LoginForm(AuthenticationForm):
 
 
 class ProfileUpdateForm(forms.ModelForm):
-    """Форма редактирования профиля.
-
-    Разрешаем менять username, email, имя и фамилию.
-    Пароль здесь НЕ меняем — для него будет отдельная форма/вьюха (стандарт Django).
-    """
+    """Форма редактирования профиля."""
 
     class Meta:
         model = User
-        fields = ("username", "email", "first_name", "last_name")
+        fields = ("username", "email", "first_name", "last_name", "avatar", "bio")
         labels = {
-            "username": "Имя пользователя",
+            "username": "Логин",
             "email": "Email",
             "first_name": "Имя",
             "last_name": "Фамилия",
+            "avatar": "Аватар",
+            "bio": "О себе",
         }
         widgets = {
             "first_name": forms.TextInput(attrs={"placeholder": "Например: Иван"}),
             "last_name": forms.TextInput(attrs={"placeholder": "Например: Иванов"}),
+            "bio": forms.Textarea(attrs={"rows": 3, "placeholder": "Люблю готовить пасту и печь хлеб..."}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
+            # В Bootstrap 5 для файлов используется тот же класс form-control
             field.widget.attrs.update({"class": "form-control"})
 
     def clean_email(self):
-        """Проверяем уникальность email, ИСКЛЮЧАЯ текущего юзера.
-
-        exclude(pk=self.instance.pk) — важно, иначе при сохранении без изменения email
-        Django скажет "такой email уже занят", потому что найдёт самого же юзера в БД.
-        """
         email = self.cleaned_data["email"].lower()
         if User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError("Этот email уже занят другим пользователем.")
         return email
 
     def clean_username(self):
-        """Аналогично — уникальность username, исключая себя же."""
         username = self.cleaned_data["username"]
         if User.objects.filter(username__iexact=username).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError("Это имя пользователя уже занято.")

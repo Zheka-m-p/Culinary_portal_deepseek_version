@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.contrib.auth.validators import ASCIIUsernameValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -47,17 +48,59 @@ class UserManager(BaseUserManager):
 class User(AbstractUser):
     """Custom user: login by email OR username; registration by email."""
 
+    # Переопределяем username из AbstractUser: только латиница, цифры, @/./+/-/_
+    # Стандартный UnicodeUsernameValidator пропускает кириллицу — нам это не нужно,
+    # иначе будут ники вида "ИванПовар" и URL профиля придётся энкодить.
+    username = models.CharField(
+        _("username"),
+        max_length=150,
+        unique=True,
+        help_text=_("Только латиница, цифры и @/./+/-/_. Например: chef_ivan."),
+        validators=[ASCIIUsernameValidator()],
+        error_messages={"unique": _("Пользователь с таким именем уже существует.")},
+    )
+
     email = models.EmailField(_("email address"), unique=True)
+
+    # Аватар. upload_to="avatars/%Y/%m/" — раскладка по папкам, как у рецептов.
+    # blank=True — необязательное. null=True НЕ ставим: пустая строка "" — это норма для ImageField.
+    avatar = models.ImageField(
+        _("avatar"),
+        upload_to="avatars/%Y/%m/",
+        blank=True,
+        help_text=_("Необязательно. JPG/PNG, до 5 МБ."),
+    )
+
+    # "О себе" — пара предложений.
+    bio = models.TextField(
+        _("bio"),
+        max_length=500,
+        blank=True,
+        help_text=_("Необязательно. Расскажите о своих кулинарных предпочтениях."),
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []  # username is auto-generated
 
     objects = UserManager()
 
+    def __str__(self):
+        return self.username
+
     def get_absolute_url(self):
         from django.urls import reverse
         # Возвращает URL публичного профиля (например: /accounts/profile/username/)
         return reverse("accounts:profile_detail", kwargs={"username": self.username})
 
-    def __str__(self):
-        return self.username
+    def delete(self, *args, **kwargs):
+        """При удалении юзера — удалить его аватар с диска.
+
+        Иначе файлы в media/avatars/ будут копиться мёртвым грузом.
+        super().delete() вызываем В КОНЦЕ, чтобы если удаление из БД упадёт,
+        файл не пропал зря.
+        """
+        avatar = self.avatar
+        result = super().delete(*args, **kwargs)
+        if avatar:
+            avatar.delete(save=False)
+        return result

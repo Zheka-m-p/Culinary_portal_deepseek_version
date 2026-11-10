@@ -16,28 +16,29 @@
                 </li>
 
                 {% if user.is_authenticated %}
-                    <!-- Кнопка создания рецепта (только для залогиненных) -->
                     <li class="nav-item ms-lg-3 mt-2 mt-lg-0">
                         <a class="btn btn-success btn-sm text-white" href="{% url 'recipes:recipe_create' %}">
                             <i class="bi bi-plus-lg"></i> Добавить рецепт
                         </a>
                     </li>
 
-                    <!-- Меню пользователя -->
                     <li class="nav-item dropdown ms-lg-3 mt-2 mt-lg-0">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-person-circle"></i> {{ user.username }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li>
-                                <!-- Ссылка на свой профиль -->
                                 <a class="dropdown-item" href="{% url 'accounts:profile' %}">
                                     <i class="bi bi-person"></i> Мой профиль
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'accounts:profile_edit' %}">
+                                    <i class="bi bi-person-gear"></i> Редактировать профиль
+                                </a>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <!-- Logout ТОЛЬКО через POST (CSRF-защита, Django 5+) -->
                                 <form method="post" action="{% url 'accounts:logout' %}" class="px-0">
                                     {% csrf_token %}
                                     <button type="submit" class="dropdown-item text-danger">
@@ -48,7 +49,6 @@
                         </ul>
                     </li>
                 {% else %}
-                    <!-- Аноним: кнопки входа и регистрации -->
                     <li class="nav-item ms-lg-3 mt-2 mt-lg-0">
                         <a class="btn btn-outline-light btn-sm" href="{% url 'accounts:login' %}">
                             <i class="bi bi-box-arrow-in-right"></i> Войти

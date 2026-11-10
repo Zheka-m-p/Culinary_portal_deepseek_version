@@ -8,11 +8,18 @@
         <div class="card-body">
             <div class="row align-items-center">
                 <div class="col-md-auto text-center mb-3 mb-md-0">
-                    <!-- Аватар-заглушка: иконка в круге -->
-                    <div class="bg-secondary-subtle rounded-circle d-inline-flex align-items-center justify-content-center"
-                         style="width: 100px; height: 100px;">
-                        <i class="bi bi-person-fill text-secondary" style="font-size: 3rem;"></i>
-                    </div>
+                    <!-- Аватар: если есть — картинка, иначе — иконка в круге -->
+                    {% if profile_user.avatar %}
+                        <img src="{{ profile_user.avatar.url }}"
+                             class="rounded-circle"
+                             style="width: 100px; height: 100px; object-fit: cover;"
+                             alt="{{ profile_user.username }}">
+                    {% else %}
+                        <div class="bg-secondary-subtle rounded-circle d-inline-flex align-items-center justify-content-center"
+                             style="width: 100px; height: 100px;">
+                            <i class="bi bi-person-fill text-secondary" style="font-size: 3rem;"></i>
+                        </div>
+                    {% endif %}
                 </div>
                 <div class="col-md">
                     <h1 class="h3 mb-1">
@@ -41,11 +48,11 @@
                         С нами с {{ profile_user.date_joined|date:"d.m.Y" }}
                     </p>
 
-                    <!-- Кнопка редактирования -->
-                    {% if is_own_profile %}
-                        <a href="{% url 'accounts:profile_edit' %}" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-pencil"></i> Редактировать профиль
-                        </a>
+                    <!-- Био -->
+                    {% if profile_user.bio %}
+                        <div class="mt-2 p-2 bg-light rounded border-start border-3 border-secondary">
+                            {{ profile_user.bio|linebreaksbr }}
+                        </div>
                     {% endif %}
                 </div>
                 <div class="col-md-auto mt-3 mt-md-0">
@@ -123,7 +130,6 @@
                                 <a href="{{ recipe.get_absolute_url }}" class="text-decoration-none text-dark">
                                     {{ recipe.title }}
                                 </a>
-                                <!-- Бейдж "Черновик" — только для своего профиля -->
                                 {% if is_own_profile and not recipe.is_published %}
                                     <span class="badge bg-warning text-dark ms-1">
                                         <i class="bi bi-eye-slash"></i> Черновик
@@ -146,7 +152,7 @@
             {% endfor %}
         </div>
 
-        <!-- Пагинация (с сохранением ?tab=) -->
+        <!-- Пагинация -->
         {% if is_paginated %}
             <nav aria-label="Page navigation" class="mt-5">
                 <ul class="pagination justify-content-center">
