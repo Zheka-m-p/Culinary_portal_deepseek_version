@@ -10,7 +10,7 @@ class Category(models.Model):
     """Категория рецептов: Супы, Салаты, Десерты и т.д."""
 
     name = models.CharField(_("название"), max_length=100, unique=True)
-    slug = models.SlugField(_("слаг"), max_length=100, unique=True, blank=True)
+    slug = models.SlugField(_("слаг"), max_length=100, unique=True, blank=True, allow_unicode=True)
 
     class Meta:
         verbose_name = _("категория")
@@ -32,7 +32,7 @@ class Recipe(models.Model):
     """Рецепт: заголовок, автор, категория, ингредиенты, шаги, фото и т.д."""
 
     title = models.CharField(_("заголовок"), max_length=200)
-    slug = models.SlugField(_("слаг"), max_length=200, unique=True, blank=True)
+    slug = models.SlugField(_("слаг"), max_length=200, unique=True, blank=True, allow_unicode=True)
 
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,

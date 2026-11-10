@@ -1,11 +1,12 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path('', include('recipes.urls')),
 ]
 
 # В DEBUG=True Django сам отдаёт файлы из MEDIA_ROOT по URL-префиксу MEDIA_URL.

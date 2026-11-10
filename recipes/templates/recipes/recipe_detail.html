@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}{{ recipe.title }} — Кулинарный портал{% endblock %}
+
+{% block content %}
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'recipes:recipe_list' %}">Главная</a></li>
+            <li class="breadcrumb-item"><a href="#">{{ recipe.category.name }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ recipe.title }}</li>
+        </ol>
+    </nav>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            {% if recipe.image %}
+                <img src="{{ recipe.image.url }}" class="img-fluid rounded shadow-sm w-100" alt="{{ recipe.title }}">
+            {% else %}
+                <div class="bg-secondary-subtle rounded d-flex align-items-center justify-content-center" style="height: 400px;">
+                    <i class="bi bi-image text-secondary" style="font-size: 5rem;"></i>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-6">
+            <h1 class="h2 mb-3">{{ recipe.title }}</h1>
+            <p class="text-muted">
+                <i class="bi bi-person"></i> Автор: <strong>{{ recipe.author.username }}</strong> &middot;
+                <i class="bi bi-calendar"></i> {{ recipe.created_at|date:"d.m.Y" }}
+            </p>
+            <div class="d-flex gap-3 mb-4">
+                <span class="badge bg-primary fs-6"><i class="bi bi-clock"></i> {{ recipe.cooking_time }} мин</span>
+                <span class="badge bg-success fs-6"><i class="bi bi-people"></i> {{ recipe.servings }} порций</span>
+                <span class="badge bg-secondary fs-6"><i class="bi bi-eye"></i> {{ recipe.views_count }} просмотров</span>
+            </div>
+
+            {% if recipe.description %}
+                <p class="lead">{{ recipe.description }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <hr class="my-5">
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <h3 class="h4 mb-3"><i class="bi bi-basket"></i> Ингредиенты</h3>
+            <div class="bg-white p-3 rounded shadow-sm border">
+                {{ recipe.ingredients|linebreaks }}
+            </div>
+        </div>
+        <div class="col-md-8">
+            <h3 class="h4 mb-3"><i class="bi bi-list-ol"></i> Приготовление</h3>
+            <div class="bg-white p-3 rounded shadow-sm border">
+                {{ recipe.steps|linebreaks }}
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Рецепты — Кулинарный портал{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2 mb-0">
+            <i class="bi bi-journal-richtext"></i> Рецепты
+        </h1>
+        <span class="text-muted small">
+            Найдено: {{ paginator.count }}
+        </span>
+    </div>
+
+    <!-- Блок поиска и фильтрации -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3 mb-md-0">
+            <form method="get" action="">
+                <!-- Скрытое поле, чтобы при поиске не сбрасывалась выбранная категория -->
+                {% if current_category %}
+                    <input type="hidden" name="category" value="{{ current_category }}">
+                {% endif %}
+                <div class="input-group">
+                    <input type="text" name="q" class="form-control"
+                           placeholder="Поиск по названию или ингредиентам..."
+                           value="{{ search_query }}">
+                    <button class="btn btn-primary" type="submit">
+                        <i class="bi bi-search"></i> Найти
+                    </button>
+                    {% if search_query or current_category %}
+                        <a href="{% url 'recipes:recipe_list' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-lg"></i> Сброс
+                        </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+        <div class="col-md-6">
+            <!-- Кнопки категорий -->
+            <div class="d-flex flex-wrap gap-2 justify-content-md-end">
+                <a href="{% url 'recipes:recipe_list' %}{% if search_query %}?q={{ search_query }}{% endif %}"
+                   class="btn btn-sm {% if not current_category %}btn-dark{% else %}btn-outline-dark{% endif %}">
+                    Все
+                </a>
+                {% for cat in categories %}
+                    <a href="?category={{ cat.slug }}{% if search_query %}&q={{ search_query }}{% endif %}"
+                       class="btn btn-sm {% if current_category == cat.slug %}btn-dark{% else %}btn-outline-dark{% endif %}">
+                        {{ cat.name }}
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {% if recipes %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for recipe in recipes %}
+                <div class="col">
+                    <div class="card h-100 shadow-sm">
+                        {% if recipe.image %}
+                            <a href="{{ recipe.get_absolute_url }}">
+                                <img src="{{ recipe.image.url }}"
+                                     class="card-img-top"
+                                     style="height: 200px; object-fit: cover;"
+                                     alt="{{ recipe.title }}">
+                            </a>
+                        {% else %}
+                            <a href="{{ recipe.get_absolute_url }}" class="text-decoration-none">
+                                <div class="bg-secondary-subtle d-flex align-items-center justify-content-center"
+                                     style="height: 200px;">
+                                    <i class="bi bi-image text-secondary" style="font-size: 3rem;"></i>
+                                </div>
+                            </a>
+                        {% endif %}
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">
+                                <a href="{{ recipe.get_absolute_url }}" class="text-decoration-none text-dark">
+                                    {{ recipe.title }}
+                                </a>
+                            </h5>
+                            <p class="card-text text-muted small mb-2">
+                                <i class="bi bi-person"></i> {{ recipe.author.username }}
+                                &middot;
+                                <i class="bi bi-tag"></i> {{ recipe.category.name }}
+                            </p>
+                            <div class="mt-auto pt-2 border-top small text-muted">
+                                <i class="bi bi-clock"></i> {{ recipe.cooking_time }} мин
+                                &middot;
+                                <i class="bi bi-people"></i> {{ recipe.servings }} порц.
+                                &middot;
+                                <i class="bi bi-eye"></i> {{ recipe.views_count }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            <i class="bi bi-emoji-frown"></i>
+            По вашему запросу ничего не найдено. Попробуйте изменить фильтры.
+        </div>
+    {% endif %}
+{% endblock %}
