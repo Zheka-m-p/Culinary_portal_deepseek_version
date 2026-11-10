@@ -6,6 +6,7 @@ from django.contrib.auth.views import LoginView as DjangoLoginView
 from django.contrib.auth.views import LogoutView as DjangoLogoutView
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import CreateView, ListView, UpdateView
 
 from recipes.models import Recipe
@@ -15,6 +16,7 @@ from .models import User
 
 class RegisterView(CreateView):
     """Регистрация нового пользователя."""
+
     form_class = RegistrationForm
     template_name = "accounts/register.html"
     success_url = reverse_lazy("recipes:recipe_list")
@@ -28,12 +30,30 @@ class RegisterView(CreateView):
     def form_valid(self, form):
         response = super().form_valid(form)
         login(self.request, self.object)
-        messages.success(self.request, f"Добро пожаловать, {self.object.username}! Аккаунт успешно создан.")
+        messages.success(
+            self.request,
+            f"Добро пожаловать, {self.object.username}! Аккаунт успешно создан.",
+        )
         return response
+
+    def get_success_url(self):
+        """После регистрации идём туда, куда шёл юзер (?next=), если ссылка безопасна.
+
+        url_has_allowed_host_and_scheme — защита от open redirect:
+        без неё ?next=https://evil.com увёл бы юзера на фишинг.
+        """
+        next_url = self.request.GET.get("next") or self.request.POST.get("next")
+        if next_url and url_has_allowed_host_and_scheme(
+            url=next_url,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            return next_url
+        return super().get_success_url()
 
 
 class LoginView(DjangoLoginView):
-    """Вход."""
+    """Вход. Django из коробки понимает ?next= (проверенный)."""
     authentication_form = LoginForm
     template_name = "accounts/login.html"
     redirect_authenticated_user = True
@@ -115,13 +135,7 @@ class ProfileView(ListView):
 
 
 class ProfileUpdateView(LoginRequiredMixin, UpdateView):
-    """Редактирование своего профиля.
-
-    - LoginRequiredMixin: анонимов отправляем на логин.
-    - get_object возвращает request.user, поэтому юзер ВСЕГДА редактирует только себя.
-      Даже если попытается подменить URL /accounts/profile/edit/ — это не URL с <username>,
-      поэтому достучаться до чужого профиля невозможно.
-    """
+    """Редактирование своего профиля."""
     model = User
     form_class = ProfileUpdateForm
     template_name = "accounts/profile_form.html"

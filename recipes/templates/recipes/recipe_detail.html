@@ -15,7 +15,6 @@
         </ol>
     </nav>
 
-    <!-- Кнопка "Назад" -->
     <div class="mb-3">
         <button onclick="history.back()" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Назад
@@ -122,6 +121,7 @@
         </div>
     </div>
 
+    <!-- Похожие рецепты (3 штуки, до комментариев) -->
     {% if similar_recipes %}
         <hr class="my-5">
         <h3 class="h4 mb-4"><i class="bi bi-lightbulb"></i> Похожие рецепты</h3>
@@ -154,9 +154,7 @@
         </div>
     {% endif %}
 
-    <!-- ================================================== -->
     <!-- СЕКЦИЯ КОММЕНТАРИЕВ -->
-    <!-- ================================================== -->
     <hr class="my-5" id="comments">
 
     <h3 class="h4 mb-4">
@@ -164,7 +162,6 @@
         <span class="badge bg-secondary fs-6 align-middle ms-1" id="comments-count">{{ comments|length }}</span>
     </h3>
 
-    <!-- Список комментариев -->
     <div id="comments-list" class="mb-4">
         {% for comment in comments %}
             {% include "recipes/includes/comment_card.html" %}
@@ -173,7 +170,6 @@
         {% endfor %}
     </div>
 
-    <!-- Форма добавления -->
     {% if user.is_authenticated %}
         <div class="card shadow-sm border-0 bg-white">
             <div class="card-body">
@@ -181,7 +177,6 @@
 
                 <div id="comment-errors"></div>
 
-                <!-- action нужен для fallback (если JS отключен) -->
                 <form id="add-comment-form" method="post" action="{% url 'recipes:comment_create' recipe.slug %}">
                     {% csrf_token %}
                     <div class="mb-3">
@@ -194,9 +189,14 @@
             </div>
         </div>
     {% else %}
+        <!-- %23comments — это #comments, закодированный для GET-параметра next.
+             После логина/регистрации браузер проскроллит к секции комментариев. -->
         <div class="alert alert-info">
             <i class="bi bi-info-circle"></i>
-            Чтобы оставить комментарий, пожалуйста, <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="alert-link">войдите</a> или <a href="{% url 'accounts:register' %}" class="alert-link">зарегистрируйтесь</a>.
+            Чтобы оставить комментарий, пожалуйста,
+            <a href="{% url 'accounts:login' %}?next={{ request.path }}%23comments" class="alert-link">войдите</a>
+            или
+            <a href="{% url 'accounts:register' %}?next={{ request.path }}%23comments" class="alert-link">зарегистрируйтесь</a>.
         </div>
     {% endif %}
 
@@ -204,9 +204,6 @@
 
 {% block extra_js %}
 <script>
-// ============================================================
-// Хелпер для получения CSRF-токена из cookies
-// ============================================================
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -223,13 +220,10 @@ function getCookie(name) {
 }
 const csrftoken = getCookie('csrftoken');
 
-// ============================================================
-// 1. Добавление комментария (AJAX)
-// ============================================================
 const addForm = document.getElementById('add-comment-form');
 if (addForm) {
     addForm.addEventListener('submit', async function(e) {
-        e.preventDefault(); // Отменяем перезагрузку страницы
+        e.preventDefault();
 
         const btn = document.getElementById('submit-comment-btn');
         const originalText = btn.innerHTML;
@@ -237,44 +231,40 @@ if (addForm) {
         btn.disabled = true;
 
         const formData = new FormData(this);
-        document.getElementById('comment-errors').innerHTML = ''; // Очищаем прошлые ошибки
+        document.getElementById('comment-errors').innerHTML = '';
 
         try {
             const response = await fetch(this.action, {
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest', // Чтобы Django понял, что это AJAX
+                    'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRFToken': csrftoken
                 }
             });
 
-            // Если не залогинен (сессия истекла)
+            // Сессия истекла — редирект на логин с якорем на комментарии
             if (response.status === 401) {
-                window.location.href = "{% url 'accounts:login' %}?next={{ request.path }}";
+                window.location.href = "{% url 'accounts:login' %}?next={{ request.path }}%23comments";
                 return;
             }
 
             const data = await response.json();
 
             if (data.ok) {
-                // Успех: вставляем HTML карточки в конец списка
                 const commentsList = document.getElementById('comments-list');
                 const noMsg = document.getElementById('no-comments-msg');
-                if (noMsg) noMsg.remove(); // Удаляем "Пока нет комментариев"
+                if (noMsg) noMsg.remove();
 
                 commentsList.insertAdjacentHTML('beforeend', data.html);
 
-                // Очищаем поле и обновляем счётчик
                 this.reset();
                 const countBadge = document.getElementById('comments-count');
                 countBadge.textContent = parseInt(countBadge.textContent) + 1;
 
-                // Скроллим к новому комменту
                 const newComment = commentsList.lastElementChild;
                 newComment.scrollIntoView({ behavior: 'smooth', block: 'center' });
             } else {
-                // Ошибки валидации
                 let errorHtml = '<div class="alert alert-danger py-2"><ul class="mb-0">';
                 for (const [field, errors] of Object.entries(data.errors)) {
                     errors.forEach(err => { errorHtml += `<li>${err}</li>`; });
@@ -292,9 +282,6 @@ if (addForm) {
     });
 }
 
-// ============================================================
-// 2. Показ/скрытие формы редактирования (инлайн)
-// ============================================================
 function toggleEdit(commentId) {
     const textDiv = document.getElementById(`comment-text-${commentId}`);
     const form = document.getElementById(`comment-edit-form-${commentId}`);
@@ -308,9 +295,6 @@ function toggleEdit(commentId) {
     }
 }
 
-// ============================================================
-// 3. Сохранение отредактированного комментария (AJAX)
-// ============================================================
 async function updateComment(event, commentId) {
     event.preventDefault();
     const form = event.target;
@@ -329,7 +313,6 @@ async function updateComment(event, commentId) {
         const data = await response.json();
 
         if (data.ok) {
-            // Успех: заменяем старую карточку на новую (полученную с сервера)
             const oldCard = document.getElementById(`comment-${commentId}`);
             oldCard.outerHTML = data.html;
         } else {
@@ -342,11 +325,7 @@ async function updateComment(event, commentId) {
     return false;
 }
 
-// ============================================================
-// 4. Удаление комментария (AJAX)
-// ============================================================
 async function deleteComment(commentId) {
-    // Без confirm(), как ты просил
     try {
         const response = await fetch(`/recipes/comments/${commentId}/delete/`, {
             method: 'POST',
@@ -359,7 +338,6 @@ async function deleteComment(commentId) {
         const data = await response.json();
 
         if (data.ok) {
-            // Плавно удаляем карточку из DOM
             const card = document.getElementById(`comment-${commentId}`);
             if (card) {
                 card.style.opacity = '0';
@@ -367,7 +345,6 @@ async function deleteComment(commentId) {
                 setTimeout(() => card.remove(), 300);
             }
 
-            // Обновляем счётчик
             const countBadge = document.getElementById('comments-count');
             if (countBadge) {
                 countBadge.textContent = Math.max(0, parseInt(countBadge.textContent) - 1);
