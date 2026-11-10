@@ -1,5 +1,5 @@
 from django import forms
-from .models import Recipe
+from .models import Recipe, Comment
 
 
 class RecipeForm(forms.ModelForm):
@@ -33,3 +33,34 @@ class RecipeForm(forms.ModelForm):
             else:
                 # Для остальных (текст, числа, файлы) — form-control
                 field.widget.attrs.update({"class": "form-control"})
+
+
+class CommentForm(forms.ModelForm):
+    """Форма для добавления и редактирования комментария.
+
+    Поля author и recipe сюда НЕ включены намеренно.
+    Их мы будем брать из request.user и URL во вьюхе.
+    Если добавить их сюда, хакер сможет через curl подделать автора.
+    """
+
+    class Meta:
+        model = Comment
+        fields = ("text",)
+        widgets = {
+            "text": forms.Textarea(attrs={
+                "rows": 2,
+                "placeholder": "Напишите комментарий...",
+            }),
+        }
+        labels = {
+            "text": "",  # Убираем стандартный лейбл, используем placeholder
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Накидываем Bootstrap-класс
+        self.fields["text"].widget.attrs.update({"class": "form-control"})
+
+        # Убираем атрибут required у HTML-тега, чтобы валидацией занимался Django (и выдавал красивые ошибки).
+        # Для AJAX это не критично, но для fallback (без JS) — полезно.
+        self.fields["text"].widget.attrs.pop("required", None)

@@ -4,12 +4,6 @@
 
 {% block content %}
     <nav aria-label="breadcrumb" class="mb-3">
-            <!-- Кнопка "Назад" (использует историю браузера) -->
-        <div class="mb-3">
-            <button onclick="history.back()" class="btn btn-sm btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Назад
-            </button>
-        </div>
         <ol class="breadcrumb">
             <li class="breadcrumb-item">
                 <a href="{% url 'recipes:recipe_list' %}"><i class="bi bi-house"></i> Главная</a>
@@ -20,6 +14,13 @@
             <li class="breadcrumb-item active" aria-current="page">{{ recipe.title }}</li>
         </ol>
     </nav>
+
+    <!-- Кнопка "Назад" -->
+    <div class="mb-3">
+        <button onclick="history.back()" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Назад
+        </button>
+    </div>
 
     <div class="row g-4">
         <div class="col-md-6">
@@ -36,7 +37,6 @@
             <div class="d-flex justify-content-between align-items-start mb-3">
                 <h1 class="h2 mb-0">
                     {{ recipe.title }}
-                    <!-- Показываем статус ТОЛЬКО автору -->
                     {% if request.user == recipe.author %}
                         {% if recipe.is_published %}
                             <span class="badge bg-success align-middle" style="font-size: 0.5em;"><i class="bi bi-globe"></i> Опубликован</span>
@@ -52,7 +52,6 @@
                             <i class="bi bi-gear"></i> Действия
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <!-- Кнопка переключения статуса (POST-запрос) -->
                             <li>
                                 <form method="post" action="{% url 'recipes:recipe_toggle_publish' recipe.slug %}">
                                     {% csrf_token %}
@@ -91,7 +90,6 @@
                 &middot;
                 <i class="bi bi-calendar"></i> {{ recipe.created_at|date:"d.m.Y" }}
             </p>
-
             <div class="d-flex gap-3 mb-4 flex-wrap">
                 <span class="badge bg-primary fs-6"><i class="bi bi-clock"></i> {{ recipe.cooking_time }} мин</span>
                 <span class="badge bg-success fs-6"><i class="bi bi-people"></i> {{ recipe.servings }} порций</span>
@@ -104,7 +102,6 @@
             {% if recipe.description %}
                 <p class="lead">{{ recipe.description }}</p>
             {% endif %}
-            <!-- Кнопку "Ко всем рецептам" отсюда убрали -->
         </div>
     </div>
 
@@ -157,10 +154,230 @@
         </div>
     {% endif %}
 
-    <!-- Оставили одну кнопку в самом низу -->
-    <div class="text-center mt-5">
-        <a href="{% url 'recipes:recipe_list' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Вернуться ко всем рецептам
-        </a>
+    <!-- ================================================== -->
+    <!-- СЕКЦИЯ КОММЕНТАРИЕВ -->
+    <!-- ================================================== -->
+    <hr class="my-5" id="comments">
+
+    <h3 class="h4 mb-4">
+        <i class="bi bi-chat-dots"></i> Комментарии
+        <span class="badge bg-secondary fs-6 align-middle ms-1" id="comments-count">{{ comments|length }}</span>
+    </h3>
+
+    <!-- Список комментариев -->
+    <div id="comments-list" class="mb-4">
+        {% for comment in comments %}
+            {% include "recipes/includes/comment_card.html" %}
+        {% empty %}
+            <div class="text-muted fst-italic" id="no-comments-msg">Пока нет комментариев. Будьте первым!</div>
+        {% endfor %}
     </div>
+
+    <!-- Форма добавления -->
+    {% if user.is_authenticated %}
+        <div class="card shadow-sm border-0 bg-white">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Оставить комментарий</h5>
+
+                <div id="comment-errors"></div>
+
+                <!-- action нужен для fallback (если JS отключен) -->
+                <form id="add-comment-form" method="post" action="{% url 'recipes:comment_create' recipe.slug %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <textarea name="text" id="id_text" class="form-control" rows="3" placeholder="Напишите комментарий..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="submit-comment-btn">
+                        <i class="bi bi-send"></i> Отправить
+                    </button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Чтобы оставить комментарий, пожалуйста, <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="alert-link">войдите</a> или <a href="{% url 'accounts:register' %}" class="alert-link">зарегистрируйтесь</a>.
+        </div>
+    {% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ============================================================
+// Хелпер для получения CSRF-токена из cookies
+// ============================================================
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+// ============================================================
+// 1. Добавление комментария (AJAX)
+// ============================================================
+const addForm = document.getElementById('add-comment-form');
+if (addForm) {
+    addForm.addEventListener('submit', async function(e) {
+        e.preventDefault(); // Отменяем перезагрузку страницы
+
+        const btn = document.getElementById('submit-comment-btn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Отправка...';
+        btn.disabled = true;
+
+        const formData = new FormData(this);
+        document.getElementById('comment-errors').innerHTML = ''; // Очищаем прошлые ошибки
+
+        try {
+            const response = await fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest', // Чтобы Django понял, что это AJAX
+                    'X-CSRFToken': csrftoken
+                }
+            });
+
+            // Если не залогинен (сессия истекла)
+            if (response.status === 401) {
+                window.location.href = "{% url 'accounts:login' %}?next={{ request.path }}";
+                return;
+            }
+
+            const data = await response.json();
+
+            if (data.ok) {
+                // Успех: вставляем HTML карточки в конец списка
+                const commentsList = document.getElementById('comments-list');
+                const noMsg = document.getElementById('no-comments-msg');
+                if (noMsg) noMsg.remove(); // Удаляем "Пока нет комментариев"
+
+                commentsList.insertAdjacentHTML('beforeend', data.html);
+
+                // Очищаем поле и обновляем счётчик
+                this.reset();
+                const countBadge = document.getElementById('comments-count');
+                countBadge.textContent = parseInt(countBadge.textContent) + 1;
+
+                // Скроллим к новому комменту
+                const newComment = commentsList.lastElementChild;
+                newComment.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                // Ошибки валидации
+                let errorHtml = '<div class="alert alert-danger py-2"><ul class="mb-0">';
+                for (const [field, errors] of Object.entries(data.errors)) {
+                    errors.forEach(err => { errorHtml += `<li>${err}</li>`; });
+                }
+                errorHtml += '</ul></div>';
+                document.getElementById('comment-errors').innerHTML = errorHtml;
+            }
+        } catch (error) {
+            console.error('Ошибка fetch:', error);
+            document.getElementById('comment-errors').innerHTML = '<div class="alert alert-danger py-2">Ошибка сети. Попробуйте позже.</div>';
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+}
+
+// ============================================================
+// 2. Показ/скрытие формы редактирования (инлайн)
+// ============================================================
+function toggleEdit(commentId) {
+    const textDiv = document.getElementById(`comment-text-${commentId}`);
+    const form = document.getElementById(`comment-edit-form-${commentId}`);
+
+    if (form.classList.contains('d-none')) {
+        form.classList.remove('d-none');
+        textDiv.classList.add('d-none');
+    } else {
+        form.classList.add('d-none');
+        textDiv.classList.remove('d-none');
+    }
+}
+
+// ============================================================
+// 3. Сохранение отредактированного комментария (AJAX)
+// ============================================================
+async function updateComment(event, commentId) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+
+    try {
+        const response = await fetch(`/recipes/comments/${commentId}/update/`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrftoken
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            // Успех: заменяем старую карточку на новую (полученную с сервера)
+            const oldCard = document.getElementById(`comment-${commentId}`);
+            oldCard.outerHTML = data.html;
+        } else {
+            alert('Ошибка: ' + JSON.stringify(data.errors || data.error));
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка при обновлении.');
+    }
+    return false;
+}
+
+// ============================================================
+// 4. Удаление комментария (AJAX)
+// ============================================================
+async function deleteComment(commentId) {
+    // Без confirm(), как ты просил
+    try {
+        const response = await fetch(`/recipes/comments/${commentId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrftoken
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            // Плавно удаляем карточку из DOM
+            const card = document.getElementById(`comment-${commentId}`);
+            if (card) {
+                card.style.opacity = '0';
+                card.style.transition = 'opacity 0.3s';
+                setTimeout(() => card.remove(), 300);
+            }
+
+            // Обновляем счётчик
+            const countBadge = document.getElementById('comments-count');
+            if (countBadge) {
+                countBadge.textContent = Math.max(0, parseInt(countBadge.textContent) - 1);
+            }
+        } else {
+            alert('Не удалось удалить: ' + (data.error === 'forbidden' ? 'Нет прав' : 'Ошибка'));
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+    }
+}
+</script>
 {% endblock %}

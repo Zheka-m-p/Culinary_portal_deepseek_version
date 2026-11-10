@@ -1,0 +1,99 @@
+{% load static %}
+{# Карточка одного комментария. Используется и в цикле recipe_detail.html, и при AJAX-ответе. #}
+{# ВАЖНО: id="comment-{{ comment.pk }}" нужен для скролла/удаления через JS. #}
+
+<div class="card mb-3 border-0 bg-white shadow-sm" id="comment-{{ comment.pk }}">
+    <div class="card-body">
+        <div class="d-flex">
+
+            {# Аватар автора #}
+            <div class="flex-shrink-0 me-3">
+                {% if comment.author.avatar %}
+                    <img src="{{ comment.author.avatar.url }}"
+                         class="rounded-circle"
+                         style="width: 40px; height: 40px; object-fit: cover;"
+                         alt="{{ comment.author.username }}">
+                {% else %}
+                    <div class="bg-secondary-subtle rounded-circle d-flex align-items-center justify-content-center"
+                         style="width: 40px; height: 40px;">
+                        <i class="bi bi-person-fill text-secondary"></i>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="flex-grow-1">
+
+                {# Шапка: имя + дата + кнопки #}
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <div>
+                        <a href="{{ comment.author.get_absolute_url }}"
+                           class="fw-bold text-decoration-none">
+                            {{ comment.author.username }}
+                        </a>
+                        {% if comment.author == recipe.author %}
+                            <span class="badge bg-info text-dark ms-1">Автор</span>
+                        {% endif %}
+                        <small class="text-muted ms-2">
+                            <i class="bi bi-clock"></i> {{ comment.created_at|date:"d.m.Y H:i" }}
+                        </small>
+                    </div>
+
+                    {# Кнопки действий #}
+                    <div class="d-flex gap-1">
+                        {% if user == comment.author %}
+                            {# Свои комментарии — можно и редактировать, и удалять #}
+                            <button type="button"
+                                    class="btn btn-sm btn-link text-secondary p-0 px-1"
+                                    onclick="toggleEdit({{ comment.pk }})"
+                                    title="Редактировать">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-link text-danger p-0 px-1"
+                                    onclick="deleteComment({{ comment.pk }})"
+                                    title="Удалить">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        {% elif user == recipe.author %}
+                            {# Под своим рецептом — можно модерировать (удалять чужие) #}
+                            <button type="button"
+                                    class="btn btn-sm btn-link text-danger p-0 px-1"
+                                    onclick="deleteComment({{ comment.pk }})"
+                                    title="Удалить (модерация)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# Текст комментария (показывается, когда не редактируется) #}
+                <div id="comment-text-{{ comment.pk }}">
+                    {{ comment.text|linebreaksbr }}
+                </div>
+
+                {# Форма редактирования (скрыта по умолчанию) #}
+                {% if user == comment.author %}
+                <form id="comment-edit-form-{{ comment.pk }}"
+                      class="d-none mt-2"
+                      onsubmit="return updateComment(event, {{ comment.pk }})">
+                    {% csrf_token %}
+                    <textarea name="text"
+                              class="form-control mb-2"
+                              rows="2">{{ comment.text }}</textarea>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-check"></i> Сохранить
+                        </button>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                onclick="toggleEdit({{ comment.pk }})">
+                            Отмена
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>

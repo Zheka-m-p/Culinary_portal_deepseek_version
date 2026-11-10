@@ -23,4 +23,14 @@ urlpatterns = [
 
     # POST /recipes/<slug>/toggle-publish/ → переключение статуса
     path("<str:slug>/toggle-publish/", views.RecipeTogglePublishView.as_view(), name="recipe_toggle_publish"),
+
+    # POST /recipes/<slug>/comment/add/ → добавление комментария (AJAX или fallback)
+    path("<str:slug>/comment/add/", views.CommentCreateView.as_view(), name="comment_create"),
+
+    # POST /comments/<pk>/update/ → редактирование комментария
+    # Отдельный префикс /comments/, не вложен в /recipes/, потому что comment знает свой рецепт
+    path("comments/<int:pk>/update/", views.CommentUpdateView.as_view(), name="comment_update"),
+
+    # POST /comments/<pk>/delete/ → удаление комментария
+    path("comments/<int:pk>/delete/", views.CommentDeleteView.as_view(), name="comment_delete"),
 ]

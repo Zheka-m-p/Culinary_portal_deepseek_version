@@ -1,14 +1,49 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import F, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
-from .forms import RecipeForm
-from .models import Category, Recipe
+from .forms import CommentForm, RecipeForm
+from .models import Category, Comment, Recipe
 
+
+# ============================================================
+# Хелпер: отличаем AJAX от обычного POST
+# ============================================================
+
+def is_ajax(request):
+    """Проверяет, пришёл ли запрос через fetch/XMLHttpRequest.
+
+    JS будет ставить заголовок X-Requested-With: XMLHttpRequest (классика).
+    Если заголовка нет — это fallback (юзер с отключённым JS), отвечаем redirect'ом.
+    """
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+class AjaxLoginRequiredMixin(LoginRequiredMixin):
+    """LoginRequiredMixin, который для AJAX возвращает JSON 401, а не HTML-редирект.
+
+    Без этого fetch на /comment/add/ анонима получил бы 302 → HTML страницы логина,
+    и JS бы не понял, что произошло.
+    """
+
+    def handle_no_permission(self):
+        if is_ajax(self.request):
+            return JsonResponse(
+                {"ok": False, "error": "login_required"},
+                status=401,
+            )
+        return super().handle_no_permission()
+
+
+# ============================================================
+# Рецепты
+# ============================================================
 
 class RecipeListView(ListView):
     """Главная: только опубликованные рецепты."""
@@ -18,7 +53,6 @@ class RecipeListView(ListView):
     paginate_by = 12
 
     def get_queryset(self):
-        # Строгий фильтр: только опубликованные.
         queryset = (
             Recipe.objects
             .filter(is_published=True)
@@ -72,6 +106,16 @@ class RecipeDetailView(DetailView):
             category=self.object.category,
             is_published=True,
         ).exclude(pk=self.object.pk).select_related("author", "category")[:3]
+
+        # Комментарии: старые сверху (ordering в модели — created_at).
+        # select_related("author") — чтобы не было N+1 при выводе username/avatar.
+        context["comments"] = (
+            self.object.comments
+            .select_related("author")
+            .order_by("created_at")
+        )
+        context["comment_form"] = CommentForm()
+
         return context
 
 
@@ -81,12 +125,10 @@ class RecipeTogglePublishView(LoginRequiredMixin, View):
     def post(self, request, slug):
         recipe = get_object_or_404(Recipe, slug=slug)
 
-        # Проверка прав: только автор может менять статус
         if request.user != recipe.author:
             messages.error(request, "Вы не можете менять статус чужого рецепта.")
             return redirect(recipe.get_absolute_url())
 
-        # Переключаем статус
         recipe.is_published = not recipe.is_published
         recipe.save()
 
@@ -151,3 +193,114 @@ class RecipeDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         response = super().form_valid(form)
         messages.warning(self.request, f"Рецепт «{title}» удалён.")
         return response
+
+
+# ============================================================
+# Комментарии (AJAX + fallback)
+# ============================================================
+
+def _render_comment_card(request, comment):
+    """Хелпер: рендерит HTML одной карточки комментария.
+
+    Используем один и тот же шаблон и при первичной загрузке страницы (через {% include %}),
+    и при AJAX-ответе (через render_to_string). Одна точка правды для разметки.
+    """
+    return render_to_string(
+        "recipes/includes/comment_card.html",
+        {
+            "comment": comment,
+            "recipe": comment.recipe,
+            "user": request.user,
+        },
+        request=request,
+    )
+
+
+class CommentCreateView(AjaxLoginRequiredMixin, View):
+    """Добавление комментария к рецепту."""
+
+    def post(self, request, slug):
+        recipe = get_object_or_404(Recipe, slug=slug)
+        form = CommentForm(request.POST)
+
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.author = request.user
+            comment.recipe = recipe
+            comment.save()
+
+            if is_ajax(request):
+                return JsonResponse({
+                    "ok": True,
+                    "html": _render_comment_card(request, comment),
+                })
+            # Fallback без JS: редирект с якорем к новому комменту
+            messages.success(request, "Комментарий добавлен.")
+            return redirect(recipe.get_absolute_url() + f"#comment-{comment.pk}")
+
+        # Ошибки
+        if is_ajax(request):
+            return JsonResponse(
+                {"ok": False, "errors": form.errors},
+                status=400,
+            )
+        messages.error(request, "Не удалось добавить комментарий. Проверьте текст.")
+        return redirect(recipe.get_absolute_url() + "#comments")
+
+
+class CommentUpdateView(AjaxLoginRequiredMixin, View):
+    """Редактирование своего комментария. Только автор."""
+
+    def post(self, request, pk):
+        comment = get_object_or_404(Comment, pk=pk)
+
+        # Права: только автор коммента
+        if request.user != comment.author:
+            if is_ajax(request):
+                return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+            messages.error(request, "Вы не можете редактировать чужой комментарий.")
+            return redirect(comment.recipe.get_absolute_url() + f"#comment-{comment.pk}")
+
+        form = CommentForm(request.POST, instance=comment)
+        if form.is_valid():
+            form.save()
+            if is_ajax(request):
+                return JsonResponse({
+                    "ok": True,
+                    "html": _render_comment_card(request, comment),
+                })
+            messages.success(request, "Комментарий обновлён.")
+            return redirect(comment.recipe.get_absolute_url() + f"#comment-{comment.pk}")
+
+        if is_ajax(request):
+            return JsonResponse({"ok": False, "errors": form.errors}, status=400)
+        messages.error(request, "Не удалось обновить комментарий.")
+        return redirect(comment.recipe.get_absolute_url() + "#comments")
+
+
+class CommentDeleteView(AjaxLoginRequiredMixin, View):
+    """Удаление комментария.
+
+    Права: автор коммента ИЛИ автор рецепта (модерация).
+    """
+
+    def post(self, request, pk):
+        comment = get_object_or_404(Comment, pk=pk)
+
+        can_delete = (
+            request.user == comment.author
+            or request.user == comment.recipe.author
+        )
+        if not can_delete:
+            if is_ajax(request):
+                return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+            messages.error(request, "Вы не можете удалить этот комментарий.")
+            return redirect(comment.recipe.get_absolute_url() + f"#comment-{comment.pk}")
+
+        recipe_url = comment.recipe.get_absolute_url()
+        comment.delete()
+
+        if is_ajax(request):
+            return JsonResponse({"ok": True})
+        messages.success(request, "Комментарий удалён.")
+        return redirect(recipe_url + "#comments")
