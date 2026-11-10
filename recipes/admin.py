@@ -37,7 +37,7 @@ class CommentInline(admin.TabularInline):
 class RecipeAdmin(admin.ModelAdmin):
     list_display = (
         "title", "author", "category", "is_published",
-        "views_count", "cooking_time", "thumbnail", "created_at",
+        "views_count", "created_at", "thumbnail", 
     )
     list_filter = ("is_published", "category", "created_at")
     search_fields = ("title", "description", "ingredients",

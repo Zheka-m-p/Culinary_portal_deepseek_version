@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -16,32 +17,8 @@
 </head>
 <body class="d-flex flex-column min-vh-100 bg-light">
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand" href="{% url 'recipes:recipe_list' %}">
-            <i class="bi bi-egg-fried"></i> Кулинарный портал
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                data-bs-target="#navMenu" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navMenu">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'recipes:recipe_list' %}">
-                        <i class="bi bi-house"></i> Главная
-                    </a>
-                </li>
-                                <!-- Кнопка создания рецепта -->
-                <li class="nav-item ms-lg-3 mt-2 mt-lg-0">
-                    <a class="btn btn-success btn-sm text-white" href="{% url 'recipes:recipe_create' %}">
-                        <i class="bi bi-plus-lg"></i> Добавить рецепт
-                    </a>
-                </li>
-            </ul>
-        </div>
-    </div>
-</nav>
+<!-- Навбар -->
+{% include "includes/navbar.html" %}
 
 <main class="container my-4 flex-grow-1">
     {% if messages %}
@@ -56,11 +33,8 @@
     {% block content %}{% endblock %}
 </main>
 
-<footer class="bg-dark text-white-50 py-3 mt-auto">
-    <div class="container text-center small">
-        © {% now "Y" %} Кулинарный портал
-    </div>
-</footer>
+<!-- Футер -->
+{% include "includes/footer.html" %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 

@@ -1,0 +1,65 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="{% url 'recipes:recipe_list' %}">
+            <i class="bi bi-egg-fried"></i> Кулинарный портал
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#navMenu" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navMenu">
+            <ul class="navbar-nav ms-auto align-items-lg-center">
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'recipes:recipe_list' %}">
+                        <i class="bi bi-house"></i> Главная
+                    </a>
+                </li>
+
+                {% if user.is_authenticated %}
+                    <!-- Кнопка создания рецепта (только для залогиненных) -->
+                    <li class="nav-item ms-lg-3 mt-2 mt-lg-0">
+                        <a class="btn btn-success btn-sm text-white" href="{% url 'recipes:recipe_create' %}">
+                            <i class="bi bi-plus-lg"></i> Добавить рецепт
+                        </a>
+                    </li>
+
+                    <!-- Меню пользователя -->
+                    <li class="nav-item dropdown ms-lg-3 mt-2 mt-lg-0">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle"></i> {{ user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item" href="#">
+                                    <i class="bi bi-person"></i> Мой профиль
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <!-- Logout ТОЛЬКО через POST (CSRF-защита, Django 5+) -->
+                                <form method="post" action="{% url 'accounts:logout' %}" class="px-0">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item text-danger">
+                                        <i class="bi bi-box-arrow-right"></i> Выйти
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                {% else %}
+                    <!-- Аноним: кнопки входа и регистрации -->
+                    <li class="nav-item ms-lg-3 mt-2 mt-lg-0">
+                        <a class="btn btn-outline-light btn-sm" href="{% url 'accounts:login' %}">
+                            <i class="bi bi-box-arrow-in-right"></i> Войти
+                        </a>
+                    </li>
+                    <li class="nav-item ms-lg-2 mt-2 mt-lg-0">
+                        <a class="btn btn-primary btn-sm" href="{% url 'accounts:register' %}">
+                            <i class="bi bi-person-plus"></i> Регистрация
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>

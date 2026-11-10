@@ -139,3 +139,13 @@ MEDIA_ROOT = BASE_DIR / "media"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Куда редиректить после успешного входа, если в URL не было ?next=
+LOGIN_REDIRECT_URL = "/recipes/"
+
+# Куда редиректить после выхода
+LOGOUT_REDIRECT_URL = "/recipes/"
+
+# Куда отправлять анонимов, которые лезут в CRUD (используется LoginRequiredMixin)
+LOGIN_URL = "/accounts/login/"
+
