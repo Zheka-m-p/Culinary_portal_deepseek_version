@@ -45,6 +45,7 @@ class RecipeAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("title",)}
     readonly_fields = ("views_count", "created_at", "updated_at", "preview_image")
     autocomplete_fields = ("author", "category")
+    list_editable = ("is_published",)
     date_hierarchy = "created_at"
     inlines = [CommentInline]
 

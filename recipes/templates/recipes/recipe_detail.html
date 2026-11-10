@@ -5,8 +5,12 @@
 {% block content %}
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'recipes:recipe_list' %}">Главная</a></li>
-            <li class="breadcrumb-item"><a href="#">{{ recipe.category.name }}</a></li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'recipes:recipe_list' %}"><i class="bi bi-house"></i> Главная</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'recipes:recipe_list' %}?category={{ recipe.category.slug }}">{{ recipe.category.name }}</a>
+            </li>
             <li class="breadcrumb-item active" aria-current="page">{{ recipe.title }}</li>
         </ol>
     </nav>
@@ -21,22 +25,75 @@
                 </div>
             {% endif %}
         </div>
-        
+
         <div class="col-md-6">
-            <h1 class="h2 mb-3">{{ recipe.title }}</h1>
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <h1 class="h2 mb-0">
+                    {{ recipe.title }}
+                    <!-- Показываем статус ТОЛЬКО автору -->
+                    {% if request.user == recipe.author %}
+                        {% if recipe.is_published %}
+                            <span class="badge bg-success align-middle" style="font-size: 0.5em;"><i class="bi bi-globe"></i> Опубликован</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark align-middle" style="font-size: 0.5em;"><i class="bi bi-eye-slash"></i> Черновик</span>
+                        {% endif %}
+                    {% endif %}
+                </h1>
+
+                {% if request.user == recipe.author %}
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-gear"></i> Действия
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <!-- Кнопка переключения статуса (POST-запрос) -->
+                            <li>
+                                <form method="post" action="{% url 'recipes:recipe_toggle_publish' recipe.slug %}">
+                                    {% csrf_token %}
+                                    {% if recipe.is_published %}
+                                        <button type="submit" class="dropdown-item text-warning">
+                                            <i class="bi bi-eye-slash"></i> Перенести в черновики
+                                        </button>
+                                    {% else %}
+                                        <button type="submit" class="dropdown-item text-success">
+                                            <i class="bi bi-globe"></i> Опубликовать
+                                        </button>
+                                    {% endif %}
+                                </form>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'recipes:recipe_update' recipe.slug %}">
+                                    <i class="bi bi-pencil"></i> Редактировать
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{% url 'recipes:recipe_delete' recipe.slug %}">
+                                    <i class="bi bi-trash"></i> Удалить
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                {% endif %}
+            </div>
+
             <p class="text-muted">
                 <i class="bi bi-person"></i> Автор: <strong>{{ recipe.author.username }}</strong> &middot;
                 <i class="bi bi-calendar"></i> {{ recipe.created_at|date:"d.m.Y" }}
             </p>
-            <div class="d-flex gap-3 mb-4">
+            <div class="d-flex gap-3 mb-4 flex-wrap">
                 <span class="badge bg-primary fs-6"><i class="bi bi-clock"></i> {{ recipe.cooking_time }} мин</span>
                 <span class="badge bg-success fs-6"><i class="bi bi-people"></i> {{ recipe.servings }} порций</span>
                 <span class="badge bg-secondary fs-6"><i class="bi bi-eye"></i> {{ recipe.views_count }} просмотров</span>
+                <a href="{% url 'recipes:recipe_list' %}?category={{ recipe.category.slug }}" class="badge bg-warning text-dark fs-6 text-decoration-none">
+                    <i class="bi bi-tag"></i> {{ recipe.category.name }}
+                </a>
             </div>
 
             {% if recipe.description %}
                 <p class="lead">{{ recipe.description }}</p>
             {% endif %}
+            <!-- Кнопку "Ко всем рецептам" отсюда убрали -->
         </div>
     </div>
 
@@ -55,5 +112,44 @@
                 {{ recipe.steps|linebreaks }}
             </div>
         </div>
+    </div>
+
+    {% if similar_recipes %}
+        <hr class="my-5">
+        <h3 class="h4 mb-4"><i class="bi bi-lightbulb"></i> Похожие рецепты</h3>
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            {% for sim in similar_recipes %}
+                <div class="col">
+                    <div class="card h-100 shadow-sm">
+                        {% if sim.image %}
+                            <a href="{{ sim.get_absolute_url }}">
+                                <img src="{{ sim.image.url }}" class="card-img-top" style="height: 150px; object-fit: cover;" alt="{{ sim.title }}">
+                            </a>
+                        {% else %}
+                            <a href="{{ sim.get_absolute_url }}" class="text-decoration-none">
+                                <div class="bg-secondary-subtle d-flex align-items-center justify-content-center" style="height: 150px;">
+                                    <i class="bi bi-image text-secondary" style="font-size: 2rem;"></i>
+                                </div>
+                            </a>
+                        {% endif %}
+                        <div class="card-body">
+                            <h6 class="card-title mb-1">
+                                <a href="{{ sim.get_absolute_url }}" class="text-decoration-none text-dark">{{ sim.title }}</a>
+                            </h6>
+                            <p class="card-text text-muted small mb-0">
+                                <i class="bi bi-clock"></i> {{ sim.cooking_time }} мин
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Оставили одну кнопку в самом низу -->
+    <div class="text-center mt-5">
+        <a href="{% url 'recipes:recipe_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Вернуться ко всем рецептам
+        </a>
     </div>
 {% endblock %}

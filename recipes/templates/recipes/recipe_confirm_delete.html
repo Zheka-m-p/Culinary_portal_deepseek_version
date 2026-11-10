@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Удаление рецепта — Кулинарный портал{% endblock %}
+
+{% block content %}
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-6">
+            <div class="card border-danger shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h2 class="h4 mb-0"><i class="bi bi-exclamation-triangle"></i> Удалить рецепт?</h2>
+                </div>
+                <div class="card-body text-center">
+                    <p class="fs-5">Вы уверены, что хотите удалить рецепт:</p>
+                    <p class="fw-bold fs-4">«{{ object.title }}»?</p>
+                    <p class="text-muted small">Это действие нельзя будет отменить.</p>
+
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        <a href="{{ object.get_absolute_url }}" class="btn btn-secondary me-2">
+                            Отмена
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Да, удалить
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
