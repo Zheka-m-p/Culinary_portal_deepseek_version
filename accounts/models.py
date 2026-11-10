@@ -54,5 +54,10 @@ class User(AbstractUser):
 
     objects = UserManager()
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        # Возвращает URL публичного профиля (например: /accounts/profile/username/)
+        return reverse("accounts:profile_detail", kwargs={"username": self.username})
+
     def __str__(self):
         return self.username
