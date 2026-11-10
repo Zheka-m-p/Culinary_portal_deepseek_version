@@ -5,16 +5,7 @@ from .models import User
 
 
 class RegistrationForm(UserCreationForm):
-    """Форма регистрации.
-
-    Наследуемся от UserCreationForm — там уже реализованы:
-    - поля password1 и password2
-    - сравнение паролей (clean_password2)
-    - валидация пароля через AUTH_PASSWORD_VALIDATORS (длина, сложность и т.д.)
-    - save() с правильным хэшированием (set_password)
-
-    Мы добавляем email (у UserCreationForm его нет) и стилизуем поля под Bootstrap.
-    """
+    """Форма регистрации."""
 
     email = forms.EmailField(
         label="Email",
@@ -25,7 +16,6 @@ class RegistrationForm(UserCreationForm):
 
     class Meta:
         model = User
-        # username нужен для отображения в профиле, email — для входа и связи.
         fields = ("username", "email", "password1", "password2")
         labels = {
             "username": "Имя пользователя",
@@ -36,33 +26,18 @@ class RegistrationForm(UserCreationForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Единообразно применяем Bootstrap-классы ко всем полям.
         for name, field in self.fields.items():
             field.widget.attrs.update({"class": "form-control"})
-            # Поля паролей не должны кэшироваться браузером
             if name in ("password1", "password2"):
                 field.widget.attrs.update({"autocomplete": "new-password"})
 
     def clean_email(self):
-        """Проверка, что email ещё не занят.
-
-        Хотя в модели у email стоит unique=True, ошибка от БД выглядит страшно
-        (IntegrityError). Лучше поймать её здесь и вернуть понятное сообщение.
-        Приводим к нижнему регистру для сравнения — чтобы Test@X.com и test@x.com
-        считались одним и тем же адресом (мы это уже делали в UserManager).
-        """
         email = self.cleaned_data["email"].lower()
         if User.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError("Пользователь с таким email уже зарегистрирован.")
         return email
 
     def clean_username(self):
-        """Проверка уникальности username (без учёта регистра).
-
-        В модели username unique=True, но это регистрозависимо на уровне БД.
-        Хотим, чтобы Ivan и ivan считались дублем — тогда логин по username
-        через наш backend (там iexact) не выберет непонятно кого.
-        """
         username = self.cleaned_data["username"]
         if User.objects.filter(username__iexact=username).exists():
             raise forms.ValidationError("Это имя пользователя уже занято.")
@@ -70,12 +45,7 @@ class RegistrationForm(UserCreationForm):
 
 
 class LoginForm(AuthenticationForm):
-    """Форма входа.
-
-    Стандартная AuthenticationForm ожидает username + password.
-    У нас через кастомный EmailOrUsernameBackend можно вводить и email, и username.
-    Поэтому переопределяем только label и help_text, а логику оставляем стандартной.
-    """
+    """Форма входа."""
 
     username = forms.CharField(
         label="Email или имя пользователя",
@@ -92,3 +62,47 @@ class LoginForm(AuthenticationForm):
         for field in self.fields.values():
             field.widget.attrs.update({"class": "form-control"})
 
+
+class ProfileUpdateForm(forms.ModelForm):
+    """Форма редактирования профиля.
+
+    Разрешаем менять username, email, имя и фамилию.
+    Пароль здесь НЕ меняем — для него будет отдельная форма/вьюха (стандарт Django).
+    """
+
+    class Meta:
+        model = User
+        fields = ("username", "email", "first_name", "last_name")
+        labels = {
+            "username": "Имя пользователя",
+            "email": "Email",
+            "first_name": "Имя",
+            "last_name": "Фамилия",
+        }
+        widgets = {
+            "first_name": forms.TextInput(attrs={"placeholder": "Например: Иван"}),
+            "last_name": forms.TextInput(attrs={"placeholder": "Например: Иванов"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-control"})
+
+    def clean_email(self):
+        """Проверяем уникальность email, ИСКЛЮЧАЯ текущего юзера.
+
+        exclude(pk=self.instance.pk) — важно, иначе при сохранении без изменения email
+        Django скажет "такой email уже занят", потому что найдёт самого же юзера в БД.
+        """
+        email = self.cleaned_data["email"].lower()
+        if User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("Этот email уже занят другим пользователем.")
+        return email
+
+    def clean_username(self):
+        """Аналогично — уникальность username, исключая себя же."""
+        username = self.cleaned_data["username"]
+        if User.objects.filter(username__iexact=username).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("Это имя пользователя уже занято.")
+        return username

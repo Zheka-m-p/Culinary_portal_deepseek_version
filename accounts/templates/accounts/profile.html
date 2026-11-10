@@ -41,9 +41,9 @@
                         С нами с {{ profile_user.date_joined|date:"d.m.Y" }}
                     </p>
 
-                    <!-- Кнопка редактирования (пока заглушка) -->
+                    <!-- Кнопка редактирования -->
                     {% if is_own_profile %}
-                        <a href="#" class="btn btn-sm btn-outline-secondary disabled" title="Скоро появится">
+                        <a href="{% url 'accounts:profile_edit' %}" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-pencil"></i> Редактировать профиль
                         </a>
                     {% endif %}
