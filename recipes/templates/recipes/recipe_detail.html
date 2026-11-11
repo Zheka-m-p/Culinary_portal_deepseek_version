@@ -99,25 +99,18 @@
                 </a>
             </div>
 
-            <!-- ============================================ -->
             <!-- БЛОК РЕЙТИНГА -->
-            <!-- ============================================ -->
             <div class="mb-4 p-3 bg-white rounded shadow-sm border" id="rating-section">
                 <div class="d-flex align-items-center gap-2">
-                    <!-- Звёзды (фон + закрашивание) -->
                     <div class="star-rating" style="font-size: 1.5rem; position: relative; display: inline-block; line-height: 1;">
-                        <!-- Серые звёзды (фон) -->
                         <div class="text-secondary opacity-25">
                             <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
                         </div>
-                        <!-- Жёлтые звёзды (наложение с шириной в процентах) -->
-                        <!-- widthratio: (avg / 5) * 100 = процент закрашивания -->
                         <div class="text-warning position-absolute top-0 start-0 overflow-hidden" id="avg-stars-fill"
                              style="width: {% widthratio recipe.rating_avg 5 100 %}%; white-space: nowrap;">
                             <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
                         </div>
 
-                        <!-- Прозрачные кнопки поверх звёзд (только для авторизованных) -->
                         {% if user.is_authenticated %}
                         <div class="position-absolute top-0 start-0 d-flex w-100 h-100" style="cursor: pointer;">
                             <div class="flex-fill" onclick="rateRecipe(1)" title="1 звезда"></div>
@@ -129,14 +122,12 @@
                         {% endif %}
                     </div>
 
-                    <!-- Статистика -->
                     <div>
                         <strong id="rating-avg-text">{{ recipe.rating_avg|default:"0" }}</strong> из 5
                         <span class="text-muted small" id="rating-count-text">({{ recipe.rating_count }} оценок)</span>
                     </div>
                 </div>
 
-                <!-- Твоя оценка (мелкий текст) -->
                 {% if user.is_authenticated %}
                     <div class="small text-muted mt-2" id="user-rating-text">
                         {% if user_rating > 0 %}
@@ -151,7 +142,6 @@
                     </div>
                 {% endif %}
             </div>
-            <!-- ============================================ -->
 
             {% if recipe.description %}
                 <p class="lead">{{ recipe.description }}</p>
@@ -198,9 +188,10 @@
                             <h6 class="card-title mb-1">
                                 <a href="{{ sim.get_absolute_url }}" class="text-decoration-none text-dark">{{ sim.title }}</a>
                             </h6>
-                            <p class="card-text text-muted small mb-0">
-                                <i class="bi bi-clock"></i> {{ sim.cooking_time }} мин
-                            </p>
+                            <div class="d-flex justify-content-between align-items-center small text-muted gap-2 flex-wrap">
+                                <span><i class="bi bi-clock"></i> {{ sim.cooking_time }} мин</span>
+                                {% include "recipes/includes/star_rating_small.html" with avg=sim.avg_rating count=sim.count_ratings %}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -228,9 +219,7 @@
         <div class="card shadow-sm border-0 bg-white">
             <div class="card-body">
                 <h5 class="card-title mb-3">Оставить комментарий</h5>
-
                 <div id="comment-errors"></div>
-
                 <form id="add-comment-form" method="post" action="{% url 'recipes:comment_create' recipe.slug %}">
                     {% csrf_token %}
                     <div class="mb-3">
@@ -256,9 +245,6 @@
 
 {% block extra_js %}
 <script>
-// ============================================================
-// 0. CSRF-токен (общий для всех AJAX-запросов на странице)
-// ============================================================
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -275,12 +261,8 @@ function getCookie(name) {
 }
 const csrftoken = getCookie('csrftoken');
 
-// ============================================================
-// 1. РЕЙТИНГ (AJAX)
-// ============================================================
 async function rateRecipe(value) {
     const url = "{% url 'recipes:recipe_rating' recipe.slug %}";
-
     try {
         const response = await fetch(url, {
             method: 'POST',
@@ -291,24 +273,16 @@ async function rateRecipe(value) {
             },
             body: `value=${value}`
         });
-
         if (response.status === 401) {
             window.location.href = "{% url 'accounts:login' %}?next={{ request.path }}%23rating-section";
             return;
         }
-
         const data = await response.json();
-
         if (data.ok) {
-            // Обновляем текст статистики
             document.getElementById('rating-avg-text').textContent = data.avg;
             document.getElementById('rating-count-text').textContent = `(${data.count} оценок)`;
-
-            // Обновляем визуальное закрашивание звёзд (проценты)
             const percent = (data.avg / 5) * 100;
             document.getElementById('avg-stars-fill').style.width = `${percent}%`;
-
-            // Обновляем надпись "Ваша оценка"
             const userRatingText = document.getElementById('user-rating-text');
             if (userRatingText) {
                 userRatingText.innerHTML = `Ваша оценка: <span id="user-rating-value">${data.user_value}</span>`;
@@ -320,9 +294,6 @@ async function rateRecipe(value) {
     }
 }
 
-// ============================================================
-// 2. КОММЕНТАРИИ (AJAX)
-// ============================================================
 const addForm = document.getElementById('add-comment-form');
 if (addForm) {
     addForm.addEventListener('submit', async function(e) {
@@ -331,7 +302,6 @@ if (addForm) {
         const originalText = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Отправка...';
         btn.disabled = true;
-
         const formData = new FormData(this);
         document.getElementById('comment-errors').innerHTML = '';
 
@@ -344,25 +314,19 @@ if (addForm) {
                     'X-CSRFToken': csrftoken
                 }
             });
-
             if (response.status === 401) {
                 window.location.href = "{% url 'accounts:login' %}?next={{ request.path }}%23comments";
                 return;
             }
-
             const data = await response.json();
-
             if (data.ok) {
                 const commentsList = document.getElementById('comments-list');
                 const noMsg = document.getElementById('no-comments-msg');
                 if (noMsg) noMsg.remove();
-
                 commentsList.insertAdjacentHTML('beforeend', data.html);
                 this.reset();
-
                 const countBadge = document.getElementById('comments-count');
                 countBadge.textContent = parseInt(countBadge.textContent) + 1;
-
                 const newComment = commentsList.lastElementChild;
                 newComment.scrollIntoView({ behavior: 'smooth', block: 'center' });
             } else {
@@ -399,21 +363,15 @@ async function updateComment(event, commentId) {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
-
     try {
         const response = await fetch(`/recipes/comments/${commentId}/update/`, {
             method: 'POST',
             body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': csrftoken
-            }
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrftoken }
         });
-
         const data = await response.json();
         if (data.ok) {
-            const oldCard = document.getElementById(`comment-${commentId}`);
-            oldCard.outerHTML = data.html;
+            document.getElementById(`comment-${commentId}`).outerHTML = data.html;
         } else {
             alert('Ошибка: ' + JSON.stringify(data.errors || data.error));
         }
@@ -428,12 +386,8 @@ async function deleteComment(commentId) {
     try {
         const response = await fetch(`/recipes/comments/${commentId}/delete/`, {
             method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': csrftoken
-            }
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrftoken }
         });
-
         const data = await response.json();
         if (data.ok) {
             const card = document.getElementById(`comment-${commentId}`);
@@ -443,9 +397,7 @@ async function deleteComment(commentId) {
                 setTimeout(() => card.remove(), 300);
             }
             const countBadge = document.getElementById('comments-count');
-            if (countBadge) {
-                countBadge.textContent = Math.max(0, parseInt(countBadge.textContent) - 1);
-            }
+            if (countBadge) countBadge.textContent = Math.max(0, parseInt(countBadge.textContent) - 1);
         } else {
             alert('Не удалось удалить: ' + (data.error === 'forbidden' ? 'Нет прав' : 'Ошибка'));
         }

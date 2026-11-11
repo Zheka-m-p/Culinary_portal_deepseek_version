@@ -3,15 +3,12 @@
 {% block title %}{{ profile_user.username }} — Кулинарный портал{% endblock %}
 
 {% block content %}
-    <!-- Карточка юзера -->
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <div class="row align-items-center">
                 <div class="col-md-auto text-center mb-3 mb-md-0">
-                    <!-- Аватар: если есть — картинка, иначе — иконка в круге -->
                     {% if profile_user.avatar %}
-                        <img src="{{ profile_user.avatar.url }}"
-                             class="rounded-circle"
+                        <img src="{{ profile_user.avatar.url }}" class="rounded-circle"
                              style="width: 100px; height: 100px; object-fit: cover;"
                              alt="{{ profile_user.username }}">
                     {% else %}
@@ -28,27 +25,15 @@
                             <span class="badge bg-info text-dark fs-6 align-middle ms-2">Это вы</span>
                         {% endif %}
                     </h1>
-
-                    <!-- Имя и фамилия — только если заполнены -->
                     {% if profile_user.first_name or profile_user.last_name %}
-                        <p class="mb-1">
-                            {{ profile_user.first_name }} {{ profile_user.last_name }}
-                        </p>
+                        <p class="mb-1">{{ profile_user.first_name }} {{ profile_user.last_name }}</p>
                     {% endif %}
-
-                    <!-- Email видит ТОЛЬКО владелец профиля -->
                     {% if is_own_profile %}
-                        <p class="text-muted mb-2">
-                            <i class="bi bi-envelope"></i> {{ profile_user.email }}
-                        </p>
+                        <p class="text-muted mb-2"><i class="bi bi-envelope"></i> {{ profile_user.email }}</p>
                     {% endif %}
-
                     <p class="text-muted small mb-2">
-                        <i class="bi bi-calendar-check"></i>
-                        С нами с {{ profile_user.date_joined|date:"d.m.Y" }}
+                        <i class="bi bi-calendar-check"></i> С нами с {{ profile_user.date_joined|date:"d.m.Y" }}
                     </p>
-
-                    <!-- Био -->
                     {% if profile_user.bio %}
                         <div class="mt-2 p-2 bg-light rounded border-start border-3 border-secondary">
                             {{ profile_user.bio|linebreaksbr }}
@@ -56,7 +41,6 @@
                     {% endif %}
                 </div>
                 <div class="col-md-auto mt-3 mt-md-0">
-                    <!-- Счётчики -->
                     <div class="d-flex gap-3 text-center">
                         {% if is_own_profile %}
                             <div>
@@ -80,7 +64,6 @@
         </div>
     </div>
 
-    <!-- Табы: только для своего профиля -->
     {% if is_own_profile %}
         <ul class="nav nav-tabs mb-4">
             <li class="nav-item">
@@ -104,7 +87,6 @@
         </ul>
     {% endif %}
 
-    <!-- Сетка рецептов -->
     {% if recipes %}
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
             {% for recipe in recipes %}
@@ -112,10 +94,8 @@
                     <div class="card h-100 shadow-sm">
                         {% if recipe.image %}
                             <a href="{{ recipe.get_absolute_url }}">
-                                <img src="{{ recipe.image.url }}"
-                                     class="card-img-top"
-                                     style="height: 200px; object-fit: cover;"
-                                     alt="{{ recipe.title }}">
+                                <img src="{{ recipe.image.url }}" class="card-img-top"
+                                     style="height: 200px; object-fit: cover;" alt="{{ recipe.title }}">
                             </a>
                         {% else %}
                             <a href="{{ recipe.get_absolute_url }}" class="text-decoration-none">
@@ -139,12 +119,15 @@
                             <p class="card-text text-muted small mb-2">
                                 <i class="bi bi-tag"></i> {{ recipe.category.name }}
                             </p>
-                            <div class="mt-auto pt-2 border-top small text-muted">
-                                <i class="bi bi-clock"></i> {{ recipe.cooking_time }} мин
-                                &middot;
-                                <i class="bi bi-people"></i> {{ recipe.servings }} порц.
-                                &middot;
-                                <i class="bi bi-eye"></i> {{ recipe.views_count }}
+                            <div class="mt-auto pt-2 border-top small text-muted d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                <span>
+                                    <i class="bi bi-clock"></i> {{ recipe.cooking_time }} мин
+                                    &middot;
+                                    <i class="bi bi-people"></i> {{ recipe.servings }} порц.
+                                    &middot;
+                                    <i class="bi bi-eye"></i> {{ recipe.views_count }}
+                                </span>
+                                {% include "recipes/includes/star_rating_small.html" with avg=recipe.avg_rating count=recipe.count_ratings %}
                             </div>
                         </div>
                     </div>
@@ -152,7 +135,6 @@
             {% endfor %}
         </div>
 
-        <!-- Пагинация -->
         {% if is_paginated %}
             <nav aria-label="Page navigation" class="mt-5">
                 <ul class="pagination justify-content-center">
@@ -164,13 +146,9 @@
                             <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if current_tab %}&tab={{ current_tab }}{% endif %}">Назад</a>
                         </li>
                     {% endif %}
-
                     <li class="page-item active">
-                        <span class="page-link">
-                            Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}
-                        </span>
+                        <span class="page-link">Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
                     </li>
-
                     {% if page_obj.has_next %}
                         <li class="page-item">
                             <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if current_tab %}&tab={{ current_tab }}{% endif %}">Вперед</a>

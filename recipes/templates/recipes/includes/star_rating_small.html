@@ -1,0 +1,21 @@
+{% comment %}
+Компактное отображение рейтинга для карточек.
+Использование:
+  {% include "recipes/includes/star_rating_small.html" with avg=recipe.avg_rating count=recipe.count_ratings %}
+Если count = 0 — ничего не выводится (нет оценок = нет звёзд).
+{% endcomment %}
+{% if count %}
+    <span class="d-inline-flex align-items-center gap-1">
+        <span style="position: relative; display: inline-block; line-height: 1; font-size: 0.85rem;">
+            <span class="text-secondary opacity-25">
+                <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+            </span>
+            <span class="text-warning position-absolute top-0 start-0 overflow-hidden"
+                  style="width: {% widthratio avg 5 100 %}%; white-space: nowrap;">
+                <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+            </span>
+        </span>
+        <span class="text-muted">{{ avg|floatformat:1 }}</span>
+        <span class="text-muted small">({{ count }})</span>
+    </span>
+{% endif %}
