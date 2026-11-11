@@ -89,7 +89,8 @@
                 &middot;
                 <i class="bi bi-calendar"></i> {{ recipe.created_at|date:"d.m.Y" }}
             </p>
-            <div class="d-flex gap-3 mb-4 flex-wrap">
+
+            <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
                 <span class="badge bg-primary fs-6"><i class="bi bi-clock"></i> {{ recipe.cooking_time }} мин</span>
                 <span class="badge bg-success fs-6"><i class="bi bi-people"></i> {{ recipe.servings }} порций</span>
                 <span class="badge bg-secondary fs-6"><i class="bi bi-eye"></i> {{ recipe.views_count }} просмотров</span>
@@ -97,6 +98,60 @@
                     <i class="bi bi-tag"></i> {{ recipe.category.name }}
                 </a>
             </div>
+
+            <!-- ============================================ -->
+            <!-- БЛОК РЕЙТИНГА -->
+            <!-- ============================================ -->
+            <div class="mb-4 p-3 bg-white rounded shadow-sm border" id="rating-section">
+                <div class="d-flex align-items-center gap-2">
+                    <!-- Звёзды (фон + закрашивание) -->
+                    <div class="star-rating" style="font-size: 1.5rem; position: relative; display: inline-block; line-height: 1;">
+                        <!-- Серые звёзды (фон) -->
+                        <div class="text-secondary opacity-25">
+                            <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+                        </div>
+                        <!-- Жёлтые звёзды (наложение с шириной в процентах) -->
+                        <!-- widthratio: (avg / 5) * 100 = процент закрашивания -->
+                        <div class="text-warning position-absolute top-0 start-0 overflow-hidden" id="avg-stars-fill"
+                             style="width: {% widthratio recipe.rating_avg 5 100 %}%; white-space: nowrap;">
+                            <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+                        </div>
+
+                        <!-- Прозрачные кнопки поверх звёзд (только для авторизованных) -->
+                        {% if user.is_authenticated %}
+                        <div class="position-absolute top-0 start-0 d-flex w-100 h-100" style="cursor: pointer;">
+                            <div class="flex-fill" onclick="rateRecipe(1)" title="1 звезда"></div>
+                            <div class="flex-fill" onclick="rateRecipe(2)" title="2 звезды"></div>
+                            <div class="flex-fill" onclick="rateRecipe(3)" title="3 звезды"></div>
+                            <div class="flex-fill" onclick="rateRecipe(4)" title="4 звезды"></div>
+                            <div class="flex-fill" onclick="rateRecipe(5)" title="5 звёзд"></div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Статистика -->
+                    <div>
+                        <strong id="rating-avg-text">{{ recipe.rating_avg|default:"0" }}</strong> из 5
+                        <span class="text-muted small" id="rating-count-text">({{ recipe.rating_count }} оценок)</span>
+                    </div>
+                </div>
+
+                <!-- Твоя оценка (мелкий текст) -->
+                {% if user.is_authenticated %}
+                    <div class="small text-muted mt-2" id="user-rating-text">
+                        {% if user_rating > 0 %}
+                            Ваша оценка: <span id="user-rating-value">{{ user_rating }}</span>
+                        {% else %}
+                            Вы ещё не оценили этот рецепт
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="small text-muted mt-2">
+                        <a href="{% url 'accounts:login' %}?next={{ request.path }}%23rating-section" class="text-decoration-none">Войдите</a>, чтобы оценить рецепт.
+                    </div>
+                {% endif %}
+            </div>
+            <!-- ============================================ -->
 
             {% if recipe.description %}
                 <p class="lead">{{ recipe.description }}</p>
@@ -121,7 +176,6 @@
         </div>
     </div>
 
-    <!-- Похожие рецепты (3 штуки, до комментариев) -->
     {% if similar_recipes %}
         <hr class="my-5">
         <h3 class="h4 mb-4"><i class="bi bi-lightbulb"></i> Похожие рецепты</h3>
@@ -189,8 +243,6 @@
             </div>
         </div>
     {% else %}
-        <!-- %23comments — это #comments, закодированный для GET-параметра next.
-             После логина/регистрации браузер проскроллит к секции комментариев. -->
         <div class="alert alert-info">
             <i class="bi bi-info-circle"></i>
             Чтобы оставить комментарий, пожалуйста,
@@ -204,6 +256,9 @@
 
 {% block extra_js %}
 <script>
+// ============================================================
+// 0. CSRF-токен (общий для всех AJAX-запросов на странице)
+// ============================================================
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -220,11 +275,58 @@ function getCookie(name) {
 }
 const csrftoken = getCookie('csrftoken');
 
+// ============================================================
+// 1. РЕЙТИНГ (AJAX)
+// ============================================================
+async function rateRecipe(value) {
+    const url = "{% url 'recipes:recipe_rating' recipe.slug %}";
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `value=${value}`
+        });
+
+        if (response.status === 401) {
+            window.location.href = "{% url 'accounts:login' %}?next={{ request.path }}%23rating-section";
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.ok) {
+            // Обновляем текст статистики
+            document.getElementById('rating-avg-text').textContent = data.avg;
+            document.getElementById('rating-count-text').textContent = `(${data.count} оценок)`;
+
+            // Обновляем визуальное закрашивание звёзд (проценты)
+            const percent = (data.avg / 5) * 100;
+            document.getElementById('avg-stars-fill').style.width = `${percent}%`;
+
+            // Обновляем надпись "Ваша оценка"
+            const userRatingText = document.getElementById('user-rating-text');
+            if (userRatingText) {
+                userRatingText.innerHTML = `Ваша оценка: <span id="user-rating-value">${data.user_value}</span>`;
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка при оценке:', error);
+        alert('Не удалось сохранить оценку. Попробуйте позже.');
+    }
+}
+
+// ============================================================
+// 2. КОММЕНТАРИИ (AJAX)
+// ============================================================
 const addForm = document.getElementById('add-comment-form');
 if (addForm) {
     addForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-
         const btn = document.getElementById('submit-comment-btn');
         const originalText = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Отправка...';
@@ -243,7 +345,6 @@ if (addForm) {
                 }
             });
 
-            // Сессия истекла — редирект на логин с якорем на комментарии
             if (response.status === 401) {
                 window.location.href = "{% url 'accounts:login' %}?next={{ request.path }}%23comments";
                 return;
@@ -257,8 +358,8 @@ if (addForm) {
                 if (noMsg) noMsg.remove();
 
                 commentsList.insertAdjacentHTML('beforeend', data.html);
-
                 this.reset();
+
                 const countBadge = document.getElementById('comments-count');
                 countBadge.textContent = parseInt(countBadge.textContent) + 1;
 
@@ -285,7 +386,6 @@ if (addForm) {
 function toggleEdit(commentId) {
     const textDiv = document.getElementById(`comment-text-${commentId}`);
     const form = document.getElementById(`comment-edit-form-${commentId}`);
-
     if (form.classList.contains('d-none')) {
         form.classList.remove('d-none');
         textDiv.classList.add('d-none');
@@ -311,7 +411,6 @@ async function updateComment(event, commentId) {
         });
 
         const data = await response.json();
-
         if (data.ok) {
             const oldCard = document.getElementById(`comment-${commentId}`);
             oldCard.outerHTML = data.html;
@@ -336,7 +435,6 @@ async function deleteComment(commentId) {
         });
 
         const data = await response.json();
-
         if (data.ok) {
             const card = document.getElementById(`comment-${commentId}`);
             if (card) {
@@ -344,7 +442,6 @@ async function deleteComment(commentId) {
                 card.style.transition = 'opacity 0.3s';
                 setTimeout(() => card.remove(), 300);
             }
-
             const countBadge = document.getElementById('comments-count');
             if (countBadge) {
                 countBadge.textContent = Math.max(0, parseInt(countBadge.textContent) - 1);

@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import F, Q
+from django.db.models import Avg, Count, F, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
@@ -9,7 +9,7 @@ from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
 from .forms import CommentForm, RecipeForm
-from .models import Category, Comment, Recipe
+from .models import Category, Comment, Rating, Recipe
 
 
 # ============================================================
@@ -17,20 +17,12 @@ from .models import Category, Comment, Recipe
 # ============================================================
 
 def is_ajax(request):
-    """Проверяет, пришёл ли запрос через fetch/XMLHttpRequest.
-
-    JS будет ставить заголовок X-Requested-With: XMLHttpRequest (классика).
-    Если заголовка нет — это fallback (юзер с отключённым JS), отвечаем redirect'ом.
-    """
+    """Проверяет, пришёл ли запрос через fetch/XMLHttpRequest."""
     return request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
 
 class AjaxLoginRequiredMixin(LoginRequiredMixin):
-    """LoginRequiredMixin, который для AJAX возвращает JSON 401, а не HTML-редирект.
-
-    Без этого fetch на /comment/add/ анонима получил бы 302 → HTML страницы логина,
-    и JS бы не понял, что произошло.
-    """
+    """LoginRequiredMixin, который для AJAX возвращает JSON 401, а не HTML-редирект."""
 
     def handle_no_permission(self):
         if is_ajax(self.request):
@@ -56,6 +48,11 @@ class RecipeListView(ListView):
         queryset = (
             Recipe.objects
             .filter(is_published=True)
+            # Аннотируем рейтинг, чтобы не делать N+1 запросов в шаблоне при выводе звёзд на карточках
+            .annotate(
+                avg_rating=Avg("ratings__value"),
+                count_ratings=Count("ratings")
+            )
             .select_related("author", "category")
         )
 
@@ -107,14 +104,21 @@ class RecipeDetailView(DetailView):
             is_published=True,
         ).exclude(pk=self.object.pk).select_related("author", "category")[:3]
 
-        # Комментарии: старые сверху (ordering в модели — created_at).
-        # select_related("author") — чтобы не было N+1 при выводе username/avatar.
+        # Комментарии
         context["comments"] = (
             self.object.comments
             .select_related("author")
             .order_by("created_at")
         )
         context["comment_form"] = CommentForm()
+
+        # Текущая оценка юзера (для закрашивания звёзд при загрузке)
+        user_rating = 0
+        if self.request.user.is_authenticated:
+            rating_obj = self.object.ratings.filter(user=self.request.user).first()
+            if rating_obj:
+                user_rating = rating_obj.value
+        context["user_rating"] = user_rating
 
         return context
 
@@ -200,11 +204,7 @@ class RecipeDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
 # ============================================================
 
 def _render_comment_card(request, comment):
-    """Хелпер: рендерит HTML одной карточки комментария.
-
-    Используем один и тот же шаблон и при первичной загрузке страницы (через {% include %}),
-    и при AJAX-ответе (через render_to_string). Одна точка правды для разметки.
-    """
+    """Хелпер: рендерит HTML одной карточки комментария."""
     return render_to_string(
         "recipes/includes/comment_card.html",
         {
@@ -234,11 +234,9 @@ class CommentCreateView(AjaxLoginRequiredMixin, View):
                     "ok": True,
                     "html": _render_comment_card(request, comment),
                 })
-            # Fallback без JS: редирект с якорем к новому комменту
             messages.success(request, "Комментарий добавлен.")
             return redirect(recipe.get_absolute_url() + f"#comment-{comment.pk}")
 
-        # Ошибки
         if is_ajax(request):
             return JsonResponse(
                 {"ok": False, "errors": form.errors},
@@ -254,7 +252,6 @@ class CommentUpdateView(AjaxLoginRequiredMixin, View):
     def post(self, request, pk):
         comment = get_object_or_404(Comment, pk=pk)
 
-        # Права: только автор коммента
         if request.user != comment.author:
             if is_ajax(request):
                 return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
@@ -279,17 +276,14 @@ class CommentUpdateView(AjaxLoginRequiredMixin, View):
 
 
 class CommentDeleteView(AjaxLoginRequiredMixin, View):
-    """Удаление комментария.
-
-    Права: автор коммента ИЛИ автор рецепта (модерация).
-    """
+    """Удаление комментария. Автор коммента ИЛИ автор рецепта."""
 
     def post(self, request, pk):
         comment = get_object_or_404(Comment, pk=pk)
 
         can_delete = (
-            request.user == comment.author
-            or request.user == comment.recipe.author
+                request.user == comment.author
+                or request.user == comment.recipe.author
         )
         if not can_delete:
             if is_ajax(request):
@@ -304,3 +298,42 @@ class CommentDeleteView(AjaxLoginRequiredMixin, View):
             return JsonResponse({"ok": True})
         messages.success(request, "Комментарий удалён.")
         return redirect(recipe_url + "#comments")
+
+
+# ============================================================
+# Рейтинг (AJAX)
+# ============================================================
+
+class RatingCreateOrUpdateView(AjaxLoginRequiredMixin, View):
+    """Поставить или изменить оценку рецепту (1-5 звёзд).
+
+    Так как один юзер ставит одну оценку на рецепт, используем update_or_create:
+    если запись есть — обновляем, если нет — создаём. Одна строчка вместо if/else.
+    """
+
+    def post(self, request, slug):
+        recipe = get_object_or_404(Recipe, slug=slug)
+
+        # Парсим и валидируем оценку
+        try:
+            value = int(request.POST.get("value", 0))
+        except (TypeError, ValueError):
+            value = 0
+
+        if not 1 <= value <= 5:
+            return JsonResponse({"ok": False, "error": "invalid_value"}, status=400)
+
+        # Создаём или обновляем оценку
+        Rating.objects.update_or_create(
+            recipe=recipe,
+            user=request.user,
+            defaults={"value": value},
+        )
+
+        # Возвращаем актуальную статистику
+        return JsonResponse({
+            "ok": True,
+            "avg": recipe.rating_avg,
+            "count": recipe.rating_count,
+            "user_value": value,
+        })
