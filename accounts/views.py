@@ -6,6 +6,10 @@ from django.contrib.auth.views import LoginView as DjangoLoginView
 from django.contrib.auth.views import LogoutView as DjangoLogoutView
 from django.contrib.auth.views import PasswordChangeView as DjangoPasswordChangeView
 from django.contrib.auth.views import PasswordChangeDoneView as DjangoPasswordChangeDoneView
+from django.contrib.auth.views import PasswordResetView as DjangoPasswordResetView
+from django.contrib.auth.views import PasswordResetDoneView as DjangoPasswordResetDoneView
+from django.contrib.auth.views import PasswordResetConfirmView as DjangoPasswordResetConfirmView
+from django.contrib.auth.views import PasswordResetCompleteView as DjangoPasswordResetCompleteView
 from django.db.models import Avg, Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
@@ -187,16 +191,7 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
 
 class PasswordChangeView(DjangoPasswordChangeView):
-    """Смена пароля для залогиненного юзера.
-
-    Django делает всё сам:
-    - требует ввести старый пароль (защита от смены, если сессию увели)
-    - прогоняет новый через AUTH_PASSWORD_VALIDATORS
-    - проверяет совпадение двух новых паролей
-    - после успеха обновляет сессию (юзер не разлогинивается)
-
-    Нам нужно только переопределить success_url и добавить сообщение.
-    """
+    """Смена пароля для залогиненного юзера."""
     template_name = "accounts/password_change_form.html"
     success_url = reverse_lazy("accounts:password_change_done")
 
@@ -209,3 +204,46 @@ class PasswordChangeView(DjangoPasswordChangeView):
 class PasswordChangeDoneView(DjangoPasswordChangeDoneView):
     """Страница «Пароль изменён» после успешной смены."""
     template_name = "accounts/password_change_done.html"
+
+
+# ============================================================
+# Восстановление пароля (forgot password)
+# ============================================================
+
+class PasswordResetView(DjangoPasswordResetView):
+    """Шаг 1: аноним вводит email → Django шлёт письмо со ссылкой.
+
+    Что делает Django за нас:
+    - Ищет юзера по email (только активных!)
+    - Генерирует одноразовый токен (на основе pk + password hash + timestamp + SECRET_KEY)
+    - Рендерит письмо из указанных шаблонов
+    - Шлёт через EMAIL_BACKEND (наш Яндекс SMTP)
+    - Редиректит на password_reset_done ВСЕГДА — даже если email не найден.
+      Это защита от user enumeration: нельзя понять, существует ли аккаунт.
+    """
+    template_name = "accounts/password_reset_form.html"
+    email_template_name = "emails/password_reset_email.txt"
+    html_email_template_name = "emails/password_reset_email.html"
+    subject_template_name = "emails/password_reset_subject.txt"
+    success_url = reverse_lazy("accounts:password_reset_done")
+    from_email = settings.DEFAULT_FROM_EMAIL
+
+
+class PasswordResetDoneView(DjangoPasswordResetDoneView):
+    """Шаг 2: «проверьте почту» — нейтральное сообщение."""
+    template_name = "accounts/password_reset_done.html"
+
+
+class PasswordResetConfirmView(DjangoPasswordResetConfirmView):
+    """Шаг 3: юзер кликнул по ссылке из письма → форма нового пароля.
+
+    Django сам проверит токен. Если он невалиден/истёк — покажет форму
+    с ошибкой «ссылка недействительна», а не 500.
+    """
+    template_name = "accounts/password_reset_confirm.html"
+    success_url = reverse_lazy("accounts:password_reset_complete")
+
+
+class PasswordResetCompleteView(DjangoPasswordResetCompleteView):
+    """Шаг 4: «пароль изменён, войдите с новым»."""
+    template_name = "accounts/password_reset_complete.html"

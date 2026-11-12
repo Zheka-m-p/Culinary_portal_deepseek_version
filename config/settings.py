@@ -149,6 +149,9 @@ LOGOUT_REDIRECT_URL = "/recipes/"
 # Куда отправлять анонимов, которые лезут в CRUD (используется LoginRequiredMixin)
 LOGIN_URL = "/accounts/login/"
 
+# Сколько живёт ссылка восстановления пароля. По умолчанию 3 дня (259200).
+PASSWORD_RESET_TIMEOUT = 1800 # Ставим 30 минут = 30 * 60 = 1800 секунд.
+
 # --- Email (Яндекс SMTP) --- для отправки писем нужна штука
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.yandex.ru"
