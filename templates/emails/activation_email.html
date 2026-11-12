@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подтверждение email</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8f9fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #212529;">
+
+    <!-- Внешняя таблица для центрирования: email-клиенты не понимают flexbox и grid -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa; padding: 40px 20px;">
+        <tr>
+            <td align="center">
+
+                <!-- Карточка письма -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                    <!-- Шапка: тёмная, как у сайта -->
+                    <tr>
+                        <td style="background-color: #212529; padding: 20px 30px; border-radius: 8px 8px 0 0; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 600;">
+                                🍳 Кулинарный портал
+                            </h1>
+                        </td>
+                    </tr>
+
+                    <!-- Тело -->
+                    <tr>
+                        <td style="padding: 30px;">
+                            <h2 style="margin: 0 0 16px 0; color: #212529; font-size: 22px; font-weight: 600;">
+                                Добро пожаловать, {{ user.username }}!
+                            </h2>
+
+                            <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #495057;">
+                                Спасибо за регистрацию на Кулинарном портале. Чтобы активировать аккаунт и начать публиковать рецепты, подтвердите ваш email.
+                            </p>
+
+                            <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #495057;">
+                                Нажмите на кнопку ниже:
+                            </p>
+
+                            <!-- Кнопка -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto 24px auto;">
+                                <tr>
+                                    <td align="center" style="background-color: #0d6efd; border-radius: 6px;">
+                                        <a href="{{ activation_url }}"
+                                           style="display: inline-block; padding: 12px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">
+                                            Подтвердить email
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0 0 8px 0; font-size: 13px; color: #6c757d;">
+                                Если кнопка не работает, скопируйте ссылку в браузер:
+                            </p>
+                            <p style="margin: 0 0 24px 0; font-size: 13px; word-break: break-all;">
+                                <a href="{{ activation_url }}" style="color: #0d6efd; text-decoration: underline;">{{ activation_url }}</a>
+                            </p>
+
+                            <p style="margin: 0; font-size: 13px; color: #6c757d; line-height: 1.5;">
+                                Ссылка действует 3 дня. Если она истекла — запросите новую на странице входа.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Футер -->
+                    <tr>
+                        <td style="padding: 20px 30px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; border-top: 1px solid #e9ecef;">
+                            <p style="margin: 0; font-size: 12px; color: #6c757d; line-height: 1.5; text-align: center;">
+                                Если вы не регистрировались на Кулинарном портале — просто проигнорируйте это письмо.
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

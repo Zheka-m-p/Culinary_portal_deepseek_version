@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Письмо отправлено — Кулинарный портал{% endblock %}
+
+{% block content %}
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-sm text-center">
+                <div class="card-body p-4">
+                    <i class="bi bi-envelope-check text-success" style="font-size: 4rem;"></i>
+                    <h2 class="h4 mt-3">Проверьте почту!</h2>
+                    <p class="text-muted">
+                        Мы отправили письмо со ссылкой для активации аккаунта.
+                        Перейдите по ней, чтобы завершить регистрацию.
+                    </p>
+                    <p class="text-muted small">
+                        Письмо может прийти в течение 1–2 минут. Если его нет — 
+                        проверьте папку «Спам».
+                    </p>
+                    <a href="{% url 'accounts:login' %}" class="btn btn-outline-primary mt-3">
+                        <i class="bi bi-box-arrow-in-right"></i> Перейти к входу
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

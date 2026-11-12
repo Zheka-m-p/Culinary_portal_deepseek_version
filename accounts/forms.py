@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.db.models import Q
 
 from .models import User
 
@@ -62,6 +63,30 @@ class LoginForm(AuthenticationForm):
         for field in self.fields.values():
             field.widget.attrs.update({"class": "form-control"})
 
+    def clean(self):
+        """Ловим неактивированных юзеров до того, как Django выдаст "invalid_login".
+
+        Стандартный authenticate() возвращает None, если user.is_active=False,
+        и форма показывает "неверный логин/пароль", что сбивает юзера с толку.
+        Мы проверяем вручную: если юзер есть, пароль верный, но не активирован —
+        выдаём понятное сообщение.
+        """
+        username = self.cleaned_data.get("username")
+        password = self.cleaned_data.get("password")
+
+        if username and password:
+            user = User.objects.filter(
+                Q(email__iexact=username) | Q(username__iexact=username)
+            ).first()
+            if user and not user.is_active and user.check_password(password):
+                raise forms.ValidationError(
+                    "Ваш аккаунт ещё не активирован. Проверьте почту. "
+                    "Если письмо не пришло — запросите новое внизу страницы.",
+                    code="inactive",
+                )
+
+        return super().clean()
+
 
 class ProfileUpdateForm(forms.ModelForm):
     """Форма редактирования профиля."""
@@ -86,7 +111,6 @@ class ProfileUpdateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
-            # В Bootstrap 5 для файлов используется тот же класс form-control
             field.widget.attrs.update({"class": "form-control"})
 
     def clean_email(self):

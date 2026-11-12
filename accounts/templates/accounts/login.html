@@ -45,6 +45,18 @@
                     </p>
                 </div>
             </div>
+
+            <!-- Блок «Отправить письмо повторно» -->
+            <div class="card shadow-sm mt-3">
+                <div class="card-body text-center small">
+                    <p class="mb-2 text-muted">Не пришло письмо с подтверждением?</p>
+                    <form method="post" action="{% url 'accounts:resend_activation' %}" class="d-flex gap-2 justify-content-center">
+                        {% csrf_token %}
+                        <input type="email" name="email" class="form-control form-control-sm" style="max-width: 220px;" placeholder="Ваш email" required>
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Отправить</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 {% endblock %}

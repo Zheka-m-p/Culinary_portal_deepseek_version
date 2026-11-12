@@ -5,20 +5,25 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView as DjangoLoginView
 from django.contrib.auth.views import LogoutView as DjangoLogoutView
 from django.db.models import Avg, Count
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views import View
 from django.views.generic import CreateView, ListView, UpdateView
 
 from recipes.models import Recipe
 from .forms import LoginForm, ProfileUpdateForm, RegistrationForm
 from .models import User
+from .tokens import verify_token
+from .utils import send_activation_email
 
 
 class RegisterView(CreateView):
+    """Регистрация с подтверждением email."""
+
     form_class = RegistrationForm
     template_name = "accounts/register.html"
-    success_url = reverse_lazy("recipes:recipe_list")
+    success_url = reverse_lazy("accounts:activation_sent")
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
@@ -27,23 +32,62 @@ class RegisterView(CreateView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        login(self.request, self.object)
-        messages.success(self.request, f"Добро пожаловать, {self.object.username}! Аккаунт успешно создан.")
-        return response
+        # Создаём юзера, но НЕ активного — активируется после клика в письме
+        self.object = form.save(commit=False)
+        self.object.is_active = False
+        self.object.save()
 
-    def get_success_url(self):
-        next_url = self.request.GET.get("next") or self.request.POST.get("next")
-        if next_url and url_has_allowed_host_and_scheme(
-            url=next_url,
-            allowed_hosts={self.request.get_host()},
-            require_https=self.request.is_secure(),
-        ):
-            return next_url
-        return super().get_success_url()
+        # Отправляем письмо со ссылкой активации
+        send_activation_email(self.request, self.object)
+
+        messages.success(
+            self.request,
+            f"Аккаунт создан! Мы отправили письмо на {self.object.email}. "
+            f"Перейдите по ссылке из письма, чтобы активировать его.",
+        )
+        # Наследуем поведение CreateView: редирект на success_url
+        return redirect(self.get_success_url())
+
+
+class ActivateView(View):
+    """Приём токена из письма, активация юзера."""
+
+    def get(self, request, token):
+        pk = verify_token(token)
+        if pk is None:
+            # Токен подделан или истёк
+            return render(request, "accounts/activation_invalid.html")
+
+        user = get_object_or_404(User, pk=pk)
+        if user.is_active:
+            messages.info(request, "Аккаунт уже активирован. Можете войти.")
+        else:
+            user.is_active = True
+            user.save()
+            messages.success(request, "Аккаунт успешно активирован! Теперь вы можете войти.")
+        return redirect("accounts:login")
+
+
+class ResendActivationView(View):
+    """Повторная отправка письма активации. POST-only."""
+
+    def post(self, request):
+        email = request.POST.get("email", "").strip()
+        user = User.objects.filter(email__iexact=email).first()
+        if user and not user.is_active:
+            send_activation_email(request, user)
+        # Всегда одинаковое сообщение — чтобы нельзя было понять,
+        # существует ли такой email (защита от user enumeration).
+        messages.success(
+            request,
+            "Если аккаунт с таким email существует и не активирован — "
+            "мы отправили письмо повторно.",
+        )
+        return redirect("accounts:login")
 
 
 class LoginView(DjangoLoginView):
+    """Вход."""
     authentication_form = LoginForm
     template_name = "accounts/login.html"
     redirect_authenticated_user = True
@@ -54,11 +98,17 @@ class LoginView(DjangoLoginView):
         return response
 
     def form_invalid(self, form):
-        messages.error(self.request, "Неверный email/логин или пароль.")
+        # Не дублируем сообщение: если в форме уже есть inactive error,
+        # не нужно показывать ещё и "неверный пароль".
+        if any(err.code == "inactive" for err in form.non_field_errors().as_data()):
+            pass  # сообщение уже в форме
+        else:
+            messages.error(self.request, "Неверный email/логин или пароль.")
         return super().form_invalid(form)
 
 
 class LogoutView(DjangoLogoutView):
+    """Выход."""
     next_page = reverse_lazy("recipes:recipe_list")
 
     def dispatch(self, request, *args, **kwargs):
@@ -68,6 +118,7 @@ class LogoutView(DjangoLogoutView):
 
 
 class ProfileView(ListView):
+    """Профиль пользователя."""
     template_name = "accounts/profile.html"
     context_object_name = "recipes"
     paginate_by = 12
@@ -86,7 +137,6 @@ class ProfileView(ListView):
     def get_queryset(self):
         target_user = self.get_target_user()
         is_own = target_user == self.request.user
-        # Аннотируем рейтинг — чтобы звёзды работали в карточках профиля
         qs = (
             Recipe.objects
             .filter(author=target_user)
@@ -130,6 +180,7 @@ class ProfileView(ListView):
 
 
 class ProfileUpdateView(LoginRequiredMixin, UpdateView):
+    """Редактирование своего профиля."""
     model = User
     form_class = ProfileUpdateForm
     template_name = "accounts/profile_form.html"
