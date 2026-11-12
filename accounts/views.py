@@ -4,6 +4,8 @@ from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView as DjangoLoginView
 from django.contrib.auth.views import LogoutView as DjangoLogoutView
+from django.contrib.auth.views import PasswordChangeView as DjangoPasswordChangeView
+from django.contrib.auth.views import PasswordChangeDoneView as DjangoPasswordChangeDoneView
 from django.db.models import Avg, Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
@@ -20,7 +22,6 @@ from .utils import send_activation_email
 
 class RegisterView(CreateView):
     """Регистрация с подтверждением email."""
-
     form_class = RegistrationForm
     template_name = "accounts/register.html"
     success_url = reverse_lazy("accounts:activation_sent")
@@ -32,20 +33,15 @@ class RegisterView(CreateView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        # Создаём юзера, но НЕ активного — активируется после клика в письме
         self.object = form.save(commit=False)
         self.object.is_active = False
         self.object.save()
-
-        # Отправляем письмо со ссылкой активации
         send_activation_email(self.request, self.object)
-
         messages.success(
             self.request,
             f"Аккаунт создан! Мы отправили письмо на {self.object.email}. "
             f"Перейдите по ссылке из письма, чтобы активировать его.",
         )
-        # Наследуем поведение CreateView: редирект на success_url
         return redirect(self.get_success_url())
 
 
@@ -55,7 +51,6 @@ class ActivateView(View):
     def get(self, request, token):
         pk = verify_token(token)
         if pk is None:
-            # Токен подделан или истёк
             return render(request, "accounts/activation_invalid.html")
 
         user = get_object_or_404(User, pk=pk)
@@ -76,8 +71,6 @@ class ResendActivationView(View):
         user = User.objects.filter(email__iexact=email).first()
         if user and not user.is_active:
             send_activation_email(request, user)
-        # Всегда одинаковое сообщение — чтобы нельзя было понять,
-        # существует ли такой email (защита от user enumeration).
         messages.success(
             request,
             "Если аккаунт с таким email существует и не активирован — "
@@ -98,10 +91,8 @@ class LoginView(DjangoLoginView):
         return response
 
     def form_invalid(self, form):
-        # Не дублируем сообщение: если в форме уже есть inactive error,
-        # не нужно показывать ещё и "неверный пароль".
         if any(err.code == "inactive" for err in form.non_field_errors().as_data()):
-            pass  # сообщение уже в форме
+            pass
         else:
             messages.error(self.request, "Неверный email/логин или пароль.")
         return super().form_invalid(form)
@@ -193,3 +184,28 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
         response = super().form_valid(form)
         messages.success(self.request, "Профиль успешно обновлён.")
         return response
+
+
+class PasswordChangeView(DjangoPasswordChangeView):
+    """Смена пароля для залогиненного юзера.
+
+    Django делает всё сам:
+    - требует ввести старый пароль (защита от смены, если сессию увели)
+    - прогоняет новый через AUTH_PASSWORD_VALIDATORS
+    - проверяет совпадение двух новых паролей
+    - после успеха обновляет сессию (юзер не разлогинивается)
+
+    Нам нужно только переопределить success_url и добавить сообщение.
+    """
+    template_name = "accounts/password_change_form.html"
+    success_url = reverse_lazy("accounts:password_change_done")
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, "Пароль успешно изменён.")
+        return response
+
+
+class PasswordChangeDoneView(DjangoPasswordChangeDoneView):
+    """Страница «Пароль изменён» после успешной смены."""
+    template_name = "accounts/password_change_done.html"

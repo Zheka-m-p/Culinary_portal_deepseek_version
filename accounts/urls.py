@@ -23,4 +23,8 @@ urlpatterns = [
     path("profile/edit/", views.ProfileUpdateView.as_view(), name="profile_edit"),
     path("profile/", views.ProfileView.as_view(), name="profile"),
     path("profile/<str:username>/", views.ProfileView.as_view(), name="profile_detail"),
+
+    # Смена пароля
+    path("password/change/", views.PasswordChangeView.as_view(), name="password_change"),
+    path("password/change/done/", views.PasswordChangeDoneView.as_view(), name="password_change_done"),
 ]
